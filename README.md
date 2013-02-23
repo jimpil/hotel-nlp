@@ -1,6 +1,6 @@
 # hotel-nlp
 
-A Clojure library tha aims to provide a common roof for several 'alien' NLP libraries/frameworks.  
+A Clojure roof for several 'foreign' NLP libraries/frameworks.  
 
 ## Motivation
 Natural Language and text-mining researchers who know (or are willing to learn) Python have a united and comprehensive set of tools to work with in their favourite language called, NLTK. 
@@ -18,9 +18,9 @@ FIXME
 
 
 ##References
-[1] http://www.nactem.ac.uk/u-compare.php
-[2] http://uima.apache.org/
-[3] https://github.com/mikera/matrix-api 
+[1] http://www.nactem.ac.uk/u-compare.php     
+[2] http://uima.apache.org/    
+[3] https://github.com/mikera/matrix-api     
 
 ## License
 
