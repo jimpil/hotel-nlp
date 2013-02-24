@@ -32,10 +32,10 @@
      
      
 ;-------------------------------------------->OPENNLP<---------------------------------------------------------
-(definline spans->strings 
+(defn spans->strings 
 "Convert an array of Spans in to an array of Strings." 
- [span-array token-array]
- `(Span/spansToStrings ~span-array ~token-array))
+ [^"[Lopennlp.tools.util.Span;" span-array ^"[Ljava.lang.String;" token-array]
+ (Span/spansToStrings  span-array  token-array))
 
 (defn- extend-opennlp-ner 
 "Entry point for extending openNLP TokenNameFinder implementations to some key protocols (e.g. IComponent).
@@ -219,7 +219,7 @@ IComponent
   
 (definline new-coreNLP 
 "The proper way of creating stanford pipelines. Need to pass a property file for which a helper fn exists ('new-properties')." 
-[props]
+[^java.util.Properties props]
  `(StanfordCoreNLP. ~props))   
   
 (defn new-properties 
@@ -234,17 +234,17 @@ IComponent
 "An attempt to squeeze as much as possible from the Annotation object in a friendly structure to work with from Clojure (a map of course!).
  nils will be in place of what was not asked fromt he anootations process in the first place." 
  [^edu.stanford.nlp.pipeline.Annotation annotation]
- (let [sentences   (.get annotation edu.stanford.nlp.ling.CoreAnnotations$SentencesAnnotation)
+ (let [^java.util.List sentences   (.get annotation edu.stanford.nlp.ling.CoreAnnotations$SentencesAnnotation)
        token-anns  (for [s    sentences 
-                         tok (.get s edu.stanford.nlp.ling.CoreAnnotations$TokensAnnotation)] tok)
-       tokens (for [t token-anns] (.get t edu.stanford.nlp.ling.CoreAnnotations$TextAnnotation))
-       pos (for [t token-anns] (.get t edu.stanford.nlp.ling.CoreAnnotations$PartOfSpeechAnnotation))
-       lemmas  (for [t token-anns]   (.get t edu.stanford.nlp.ling.CoreAnnotations$LemmaAnnotation))
-       entities (for [t token-anns]  (.get t edu.stanford.nlp.ling.CoreAnnotations$NamedEntityTagAnnotation))
-       parse-tree (for [s sentences] (.get s edu.stanford.nlp.trees.TreeCoreAnnotations$TreeAnnotation))
-       dependency-graph (for [s sentences] (.get s edu.stanford.nlp.trees.semgraph.SemanticGraphCoreAnnotations$CollapsedCCProcessedDependenciesAnnotation))
+                         tok (.get ^edu.stanford.nlp.util.CoreMap s edu.stanford.nlp.ling.CoreAnnotations$TokensAnnotation)] tok)
+       tokens (for [t token-anns] (.get ^edu.stanford.nlp.ling.CoreLabel t edu.stanford.nlp.ling.CoreAnnotations$TextAnnotation))
+       pos (for [t token-anns] (.get ^edu.stanford.nlp.ling.CoreLabel t edu.stanford.nlp.ling.CoreAnnotations$PartOfSpeechAnnotation))
+       lemmas  (for [t token-anns]   (.get ^edu.stanford.nlp.ling.CoreLabel t edu.stanford.nlp.ling.CoreAnnotations$LemmaAnnotation))
+       entities (for [t token-anns]  (.get ^edu.stanford.nlp.ling.CoreLabel t edu.stanford.nlp.ling.CoreAnnotations$NamedEntityTagAnnotation))
+       parse-tree (for [s sentences] (.get ^edu.stanford.nlp.ling.CoreLabel s edu.stanford.nlp.trees.TreeCoreAnnotations$TreeAnnotation))
+       dependency-graph (for [s sentences] (.get ^edu.stanford.nlp.util.CoreMap s edu.stanford.nlp.trees.semgraph.SemanticGraphCoreAnnotations$CollapsedCCProcessedDependenciesAnnotation))
        coref (.get annotation edu.stanford.nlp.dcoref.CorefCoreAnnotations$CorefChainAnnotation)] 
-  {:sentences (for [s sentences] (.get s edu.stanford.nlp.ling.CoreAnnotations$TextAnnotation))
+  {:sentences (for [s sentences] (.get ^edu.stanford.nlp.util.CoreMap s edu.stanford.nlp.ling.CoreAnnotations$TextAnnotation))
    :tokens tokens
    :lemmas lemmas
    :pos pos 
@@ -252,73 +252,57 @@ IComponent
    :tree parse-tree
    :graph dependency-graph
    :coref coref})) 
-   
+
+;;inspired from clojure/core/protocols.clj    
 (def ^:private co-stub
 '(run [this ^String text] 
    (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
-     (.annotate this ann) ann)))     
+     (.annotate this ann) ann))) 
+
+(defn- emit-IComponent-impls* [syms]
+ (apply concat
+  (map
+    (fn [s]
+      [(symbol (str "edu.stanford.nlp.pipeline." s)) co-stub])
+    syms)) ) 
+
+(defmacro ^:private emit-IComponent-impls [& syms]
+  `(extend-protocol IComponent
+     ~@(emit-IComponent-impls* syms)))
+     
+(defn- extract-annotators [stanford-pipe individuals?]
+ (let [properties  (.getProperties stanford-pipe)
+       an-string   (.getProperty ^java.util.Properties properties "annotators")
+       individuals (.split ^String an-string "[, \t]+")] ;;split the string exactly how they split it 
+ (if-not individuals? an-string
+ (for [an-name individuals]
+  (edu.stanford.nlp.pipeline.StanfordCoreNLP/getExistingAnnotator an-name)))))             
       
 
 (defn extend-stanford-core 
 "A single fn to extend to all stanford-corenlp modules (or 'annotators' as they call them). "
 []
-(extend-type edu.stanford.nlp.pipeline.AnnotationPipeline
+(extend-type edu.stanford.nlp.pipeline.StanfordCoreNLP
 IWorkflow
 (deploy [this ^String text] 
   (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
      (.annotate this ann) ann))
-(appendComponent [this co]  
-  (.addAnnotator this (reify edu.stanford.nlp.pipeline.Annotator 
-  			(annotate [this annotation] 
-  			  (run co annotation))))) )
-(extend-protocol IComponent  ;;enumerate them individually - there is no other way to have them NOT satisfy IWorkflow
-edu.stanford.nlp.pipeline.POSTaggerAnnotator      
-(run [this  text] 
-   (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
-     (.annotate this ann) ann))
-edu.stanford.nlp.pipeline.PTBTokenizerAnnotator  
-(run [this text] 
-   (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
-     (.annotate this ann) ann))
-edu.stanford.nlp.pipeline.WordsToSentencesAnnotator 
-(run [this  text] 
-   (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
-     (.annotate this ann) ann)) 
-edu.stanford.nlp.pipeline.CleanXmlAnnotator       
-(run [this  text] 
-   (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
-     (.annotate this ann) ann))
-edu.stanford.nlp.pipeline.MorphaAnnotator         
-(run [this  text] 
-   (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
-     (.annotate this ann) ann)) 
-edu.stanford.nlp.pipeline.NERCombinerAnnotator   
-(run [this  text] 
-   (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
-     (.annotate this ann) ann))
-edu.stanford.nlp.pipeline.RegexNERAnnotator       
-(run [this text] 
-   (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
-     (.annotate this ann) ann)) 
-edu.stanford.nlp.pipeline.TrueCaseAnnotator       
-(run [this text] 
-   (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
-     (.annotate this ann) ann))
-edu.stanford.nlp.pipeline.ParserAnnotator         
-(run [this  text] 
-   (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
-     (.annotate this ann) ann))
-edu.stanford.nlp.pipeline.DeterministicCorefAnnotator 
-(run [this  text] 
-   (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
-     (.annotate this ann) ann)) )   			  
-)
-  
-#_(extend-type edu.stanford.nlp.pipeline.StanfordCoreNLP
-IComponent
- (run [this ^String text] 
-  (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
-    (.annotate this ann) ann)))
+(appendComponent [this co]  ;;appending components is generally not supported by stanfordNLP pipes- you will most likely get a concrete Workflow object back
+(let [ann-string  (extract-annotators this false)]
+ (cond 
+ (string? co)  	;;this is the only case where you will get a StanfordCoreNLP Object back 
+  (new-coreNLP (doto (java.util.Properties.) 
+                (.setProperty "annotators" (str ann-string ", " co))))
+(instance? edu.stanford.nlp.pipeline.Annotator co) (Workflow. (vector (extract-annotators this true) co))   	 
+:else (Workflow. (vector (extract-annotators this true) (reify edu.stanford.nlp.pipeline.Annotator 
+  	                                                   (annotate [this annotation] 
+  	                                                    (run co annotation))))))))
+(getComponents [this]
+ (extract-annotators this true)) )
+(emit-IComponent-impls ;nice trick to avoid enumerating all the identical implementations
+  POSTaggerAnnotator PTBTokenizerAnnotator WordsToSentencesAnnotator 
+  CleanXmlAnnotator MorphaAnnotator NERCombinerAnnotator RegexNERAnnotator 
+  TrueCaseAnnotator ParserAnnotator DeterministicCorefAnnotator) )
      
 ;(def props (new-properties "annotators" "tokenize" "ssplit" "pos" "lemma" "regexner" "parse" "dcoref")) 
 ;(def annotator (new-coreNLP props)) 
