@@ -22,12 +22,14 @@
             RussianStemmer SpanishStemmer SwedishStemmer TurkishStemmer])  
 )
 
-(definline testables "Returns all the vars from the given namespace with the :test key present in their meta-data." 
+(definline testables 
+"Returns all the vars from the given namespace with the :test key present in their meta-data." 
  [nspace]
  `(for [[_# v#] (ns-map ~nspace) :when (:test (meta v#))] v#)) 
  
  ;(run-tests)
- 
+
+(def requirements [:string :string-seq :2d-string-seq :string-array :span-array :stanford-annotation]) 
  
 (def pretrained-models {:openNLP {}
                         :stanfordNLP {}
