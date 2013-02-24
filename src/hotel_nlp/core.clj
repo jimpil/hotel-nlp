@@ -10,7 +10,7 @@
 
 (definline component? 
 "Tests if c satisfies IComponent." [c]
- `(if (satisfies? IComponent ~c) true false))
+ `(if (satisfies? IComponent ~c) true false)) 
  
 (defn fn->component [f]
 (reify IComponent
@@ -25,26 +25,31 @@
 [name co]
 `(let [c# ~co]  
   (assert (component? c#) "Not a valid IComponent")
-  (def ~name c#))) 
+  (def ~name c#)))
+  
+(defmacro defcomponent
+"Defines a top-level Component with the specified name. 
+ co must satisfy IComponent." 
+([name co]
+`(let [c# ~co]  
+  (assert (component? c#) "Not a valid IComponent")
+  (def ~name c#)))
+([name doc-s co]
+ `(let [c# ~co]  
+  (assert (component? c#) "Not a valid IComponent")
+  (def ~name ~doc-s c#))))    
+ 
 
 (defmacro defworkflow 
 "Defines a top-level Workflow with the specified name containing the given Components."  
 [name & components]
-`(let [cs# (vector ~@components)]
-  (assert (every? component? cs#) "Can only accept IComponents")
-  (def ~name (Workflow. cs#))))
+(let [[doc & comps :as all] (eval `(vector ~@components)) 
+       cs  (if (string? doc) [comps true] [all false])
+       ds  (if (second cs) doc "Undocumented workflow.")]
+  (assert (every? component? (first cs)) "Can only accept IComponents")
+`(def ~(with-meta name (assoc (meta name) :doc ds)) (Workflow. '~(first cs) {:description ~ds} nil))))
   
-  
-#_(defmacro  defworkflow 
-"Defines a top-level Workflow with the specified name containing the given Components."  
- ([name & components]
- `(let [cs# (vector ~@components)]
-   (assert (every? component? cs#) "Can only accept IComponents")
-   (def  ~name  (Workflow. cs#))))
- ([name doc-string & comps] 
- `(let [cs# (vector ~@comps)]
-   (assert (every? component? cs#) "Can only accept IComponents")
-   (def ^{:doc doc-string} ~name  (Workflow. cs#)))) )  
+
   
 
    
