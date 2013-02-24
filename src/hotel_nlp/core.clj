@@ -23,19 +23,19 @@
 "Defines a top-level Component with the specified name. 
  co must satisfy IComponent. The only thing this does over a plain 'def' is checking whether co is an actual Component." 
 ([name co]
-`(let [c# ~co]  
-  (assert (component? c#) "Not a valid IComponent")
-  (def ~name c#)))
+ (let [c (eval co)]  
+  (assert (component? c) "Not a valid IComponent")
+ `(def ~name ~c)))
 ([name doc-s co]
- `(let [c# ~co]  
-  (assert (component? c#) "Not a valid IComponent")
-  (def ~name ~doc-s c#))))    
+ (let [c (eval co)]  
+  (assert (component? c) "Not a valid IComponent")
+ `(def ~name ~doc-s ~c))))    
  
 
 (defmacro defworkflow 
 "Defines a top-level Workflow with the specified name containing the given Components."  
 [name & components]
-(let [[doc & comps :as all] (eval `(vector ~@components)) 
+(let [[doc & comps :as all] (eval (vec components)) 
        cs  (if (string? doc) [comps true] [all false])
        ds  (if (second cs) doc "Undocumented workflow.")]
   (assert (every? component? (first cs)) "Can only accept IComponents")
