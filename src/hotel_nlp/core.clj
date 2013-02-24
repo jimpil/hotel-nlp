@@ -18,18 +18,10 @@
    (Workflow. (help/link this pos other))) 
  (run [_ args] 
    (apply f args)))) 
- 
-(defmacro defcomponent
-"Defines a top-level Component with the specified name. 
- co must satisfy IComponent." 
-[name co]
-`(let [c# ~co]  
-  (assert (component? c#) "Not a valid IComponent")
-  (def ~name c#)))
   
 (defmacro defcomponent
 "Defines a top-level Component with the specified name. 
- co must satisfy IComponent." 
+ co must satisfy IComponent. The only thing this does over a plain 'def' is checking whether co is an actual Component." 
 ([name co]
 `(let [c# ~co]  
   (assert (component? c#) "Not a valid IComponent")
