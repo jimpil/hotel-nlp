@@ -97,7 +97,16 @@
  (-> path
     io/resource
     slurp
-    read-string))))         
+    read-string)))) 
+    
+(defn slurp-resource 
+"Given a path to some resource (resources/...) , read it in using slurp." 
+[path]
+(io!
+ (binding [*read-eval* false] 
+ (-> path
+    io/resource
+    slurp))))             
     
 (defmacro definvokable ;credit to Meikel Brandmeyer (kotarak), might come in handy
   [type fields & deftype-tail]
@@ -201,12 +210,13 @@ only when there's a non-map at a particular level.
 
 (with-test 
 (defn dim-no 
-"Returns the number of dimensions for coll which must be a java.util.Collection." 
+"Returns the number of dimensions for coll which must be a java.util.Collection or an array.." 
 [coll]
-(assert (instance? java.util.Collection coll) "Can only accept java.util.Collection")
+(assert (instance? java.util.Collection (seq coll)) "Can only accept java.util.Collection")
 (loop [i 1
-      [f s & more] coll]
-  (if-not (instance? java.util.Collection f) i 
+      [f s & more] (try (seq coll) (catch Exception ex coll))]
+  (if-not (instance? java.util.Collection (try (if (string? f) f (seq f)) 
+                                          (catch Exception ex f))) i 
  (recur (inc i) f))))
  
 (is (= 1 (dim-no [3 4 5]))) 
