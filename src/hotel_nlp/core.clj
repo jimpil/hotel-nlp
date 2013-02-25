@@ -17,7 +17,7 @@
  (link [this pos other]
    (Workflow. (help/link this pos other))) 
  (run [_ args] 
-   (apply f args)))) 
+   (f args)))) 
   
 (defmacro defcomponent
 "Defines a top-level Component with the specified name. 
