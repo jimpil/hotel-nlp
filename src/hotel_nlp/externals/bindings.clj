@@ -36,6 +36,9 @@
 "Convert an array of Spans in to an array of Strings." 
  [^"[Lopennlp.tools.util.Span;" span-array ^"[Ljava.lang.String;" token-array]
  (Span/spansToStrings  span-array  token-array))
+ 
+(defn parses->string [^"[Lopennlp.tools.parser.Parse;" topParses] 
+(doseq [^opennlp.tools.parser.Parse p topParses] (.show p)) ) 
 
 (defn- extend-opennlp-ner 
 "Entry point for extending openNLP TokenNameFinder implementations to some key protocols (e.g. IComponent).
@@ -47,10 +50,12 @@ IComponent
 ([this token-seq] 
   (run this token-seq nil))
 ([this token-seq context] 
- (let [array (into-array ^String token-seq)] 
-      (if (nil? context) (.find this array) 
-                         (.find this array context))  
-       array)))
+ (if (nil? context) 
+ (if (help/two-d? token-seq) (map #(spans->strings (.find this (into-array ^String %)) (into-array ^String %)) token-seq) 
+                                   (spans->strings (.find this (into-array ^String token-seq)) (into-array ^String token-seq)))
+ (if (help/two-d? token-seq) (map #(spans->strings (.find this (into-array ^String %) context) (into-array ^String token-seq))) 
+                                  #(spans->strings (.find this (into-array ^String token-seq) context) (into-array ^String token-seq)))  
+ )) )
 (link [this pos other] 
   (Workflow. (hotel_nlp.helper/link this pos other))) ) )
   
@@ -114,10 +119,27 @@ IComponent
 IComponent
 (run 
 ([this tokens]  
-  (run this tokens nil))
-([this tokens nums] 
-  (if nums  (.parse this tokens nums) ;;will return a Parse[] 
-            (.parse this tokens))))   ;;will return a Parse object
+  (run this tokens 1))
+([this tokens nums]
+(if (help/two-d? tokens) (map #(run this % nums) tokens)
+ (let [^String sentence (apply str (interpose " " tokens))]
+(.parse this       
+ (loop [start 0 i 0
+ 	p (opennlp.tools.parser.Parse. sentence 
+           		      (opennlp.tools.util.Span. 0 (.length sentence)) 
+            			 opennlp.tools.parser.AbstractBottomUpParser/INC_NODE 0.0 0)
+        ts tokens]
+   (if (empty? ts) p
+   (recur (+ (inc start) (count (first ts))) (inc i) (doto p (.insert
+                                              (opennlp.tools.parser.Parse. sentence 
+                                                (opennlp.tools.util.Span. start (+ start (count (first ts)))) 
+                                                  opennlp.tools.parser.AbstractBottomUpParser/TOK_NODE 0.0 i)))  (next ts)))) nums)  ))))         
+ 
+ 
+ 
+  
+  ; (map #(.parse this (Parse. % (Span. ))                         (if (help/string-array? %) % (into-array ^String %)) nums) tokens) 
+  ; (.parse this  (if (help/string-array? tokens) tokens (into-array ^String tokens)) nums))))
 (link [this pos other] 
   (Workflow. (hotel_nlp.helper/link this pos other))) )
 )
@@ -126,8 +148,11 @@ IComponent
 (extend-type opennlp.tools.chunker.Chunker ;; all Chunking modules of openNLP
 IComponent
 (run [this tokens tags]
-  (.chunk this (into-array ^String tokens) 
-               (into-array ^String tags))) ;;will return a String[]
+ (if (help/two-d? tokens)  
+  (map #(.chunk this (if (help/string-array? %1) %1 (into-array ^String %1)) 
+                     (if (help/string-array? %2) %2 (into-array ^String %2))) tokens tags)    
+  (.chunk this (if (help/string-array? tokens) tokens (into-array ^String tokens)) 
+               (if (help/string-array? tags)   tags   (into-array ^String tags))))) ;;will return a String[]
 (link [this pos other] 
   (Workflow. (hotel_nlp.helper/link this pos other))) )
 )
@@ -154,28 +179,41 @@ IComponent
 (def opennlp-simple-tok (opennlp.tools.tokenize.SimpleTokenizer/INSTANCE))   
 
 (defn opennlp-me-ssplit 
-([] (opennlp-me-ssplit "pretrained_models/opennlp/en-sent.bin"))
+([] (opennlp-me-ssplit "resources/pretrained_models/opennlp/en-sent.bin"))
 ([model-resource-path] 
  (opennlp.tools.sentdetect.SentenceDetectorME. 
    (opennlp.tools.sentdetect.SentenceModel.
-   (java.io.FileInputStream. (clojure.java.io/file 
-   (clojure.java.io/resource model-resource-path)))))))
+   (java.io.FileInputStream. 
+   (clojure.java.io/file  model-resource-path))))))
 
 (defn opennlp-me-pos 
-([] (opennlp-me-pos "pretrained_models/opennlp/en-pos-maxent.bin"))
+([] (opennlp-me-pos "resources/pretrained_models/opennlp/en-pos-maxent.bin"))
 ([model-resource-path] 
  (opennlp.tools.postag.POSTaggerME. 
    (opennlp.tools.postag.POSModel.
-   (java.io.FileInputStream. (clojure.java.io/file 
-   (clojure.java.io/resource model-resource-path)))))))
+   (java.io.FileInputStream.
+    (clojure.java.io/file model-resource-path))))))
 
 (defn opennlp-me-ner 
-([] (opennlp-me-ner "pretrained_models/opennlp/en-ner-person.bin"))
+([] (opennlp-me-ner "resources/pretrained_models/opennlp/en-ner-person.bin"))
 ([model-resource-path] 
  (opennlp.tools.namefind.NameFinderME. 
  (opennlp.tools.namefind.TokenNameFinderModel.
-  (java.io.FileInputStream. (clojure.java.io/file 
-  (clojure.java.io/resource model-resource-path)))))))                              
+  (java.io.FileInputStream. (clojure.java.io/file  model-resource-path))))))
+  
+(defn opennlp-me-chunk 
+([] (opennlp-me-chunk "resources/pretrained_models/opennlp/en-chunker.bin")) 
+([model-path] 
+ (opennlp.tools.chunker.ChunkerME.
+   (opennlp.tools.chunker.ChunkerModel.
+    (java.io.FileInputStream. (clojure.java.io/file model-path)))))) 
+  
+(defn opennlp-me-parse 
+([] (opennlp-me-parse "resources/pretrained_models/opennlp/en-parser-chunking.bin")) 
+([model-path] 
+ (opennlp.tools.parser.ParserFactory/create
+   (opennlp.tools.parser.ParserModel.
+    (java.io.FileInputStream. (clojure.java.io/file model-path))))))                               
   
 (defn extend-opennlp
  "Extend the specified modules from openNLP. 
