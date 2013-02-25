@@ -79,7 +79,8 @@
 IComponent
  (link [this pos other]
    (Workflow. (help/link this pos other))) 
- (run [this text] (deploy this text)) 
+ (run [this text] (deploy this text))
+ ;(run [this text & more] (deploy this text (first more))) 
 clojure.lang.IFn  ;;can act as an fn
   (invoke [this arg]
     (deploy this arg))
