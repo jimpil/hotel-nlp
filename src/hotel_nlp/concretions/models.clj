@@ -239,10 +239,10 @@ IRipper
 (rip [this start-page end-page] 
   (help/pdf->text source :s-page start-page :e-page end-page))
 IExecutable
-(execute [this args] (apply help/pdf->text source args))) ;args should be {:s-page 5 e-page 100}
+(execute [this args] (apply help/pdf->text source args))) ;args should be like {:s-page 5 :e-page 100}
 ;------------------------------------------------------------------------------------------------------
 
-
+;;provide extracted probabilities in meta-data key :probs
 (defrecord HMM-POS-tagger [prob-extractor ;(comp vit/proper-statistics vit/tables) - a fn which will return a seq containing '(:states :inits :emmission :transition)
                           algo]           ; vit/viterbi 
 IProbabilistic
@@ -250,18 +250,31 @@ IProbabilistic
  (let [[states starts emms trans] (prob-extractor tagged-corpus)]   ;; we got corpus - need to extract probabilities
   (vit/make-hmm states starts emms trans))) ;;returns a map/record of probabilities (the actual model)
 (observe [this tagged-corpus probs]  
- (if (nil? tagged-corpus)
+ (if (and (nil? tagged-corpus) ;pass nil to start from scratch
+          (not (nil? probs))) ;;if we don't have corpus, we must have probabilities
    (let [{states :states 
          starts  :init-probs  
          emms    :emission-probs
          trans   :state-transitions} probs]    ;; we got probabilities, not corpus - no need to extract anything
-     (vit/make-hmm states starts emms trans))     
+     (vit/make-hmm states starts emms trans))  ;;we got an actual corpus   
  (help/deep-merge-with #(if (vector? %) % (+ % %2)) probs (observe this tagged-corpus)))) ;TODO  ;;cannot add new states at the moment, only update probabilities
 IModel                                        
- (predict [this probs tokens] 
+ (predict [this probs tokens]
+  (if (help/two-d? tokens)  
+  (map #(try (algo probs %)
+         (catch ClassCastException cce ;;someone is trying to use the raw map containing the sets!  
+          (predict this (observe this nil probs) %))) tokens) 
    (try (algo probs tokens)
    (catch ClassCastException cce ;;someone is trying to use the raw map containing the sets!  
-     (predict this (observe this nil probs) tokens))))) ;;pass the map containing the vectors
+     (predict this (observe this nil probs) tokens)))))
+IComponent  
+(run [this tokens]
+ (let [ps (-> this meta :probs)]
+  (if (help/two-d? tokens)  
+   (map (partial predict this ps)  tokens)
+   (predict this ps tokens))) ) 
+(link [this pos other] 
+ (Workflow. (help/link this pos other))) ) ;;construct and pass the map containing the vectors instead
  
 ;----------------------------------------------------------------------------------------------------------
 
