@@ -35,28 +35,39 @@
  [^"[Lopennlp.tools.util.Span;" span-array ^"[Ljava.lang.String;" token-array]
  (Span/spansToStrings  span-array  token-array))
  
-(defn parses->string [^"[Lopennlp.tools.parser.Parse;" topParses] 
-(doseq [^opennlp.tools.parser.Parse p topParses] (.show p)) ) 
+(defn parse->string [topParses]
+(if (seq? topParses)  
+  (doseq [p topParses] (.show ^opennlp.tools.parser.Parse p)) 
+(.show ^opennlp.tools.parser.Parse topParses))) 
+
+(defn chunk->spans [^opennlp.tools.chunker.Chunker chunker ^"[Ljava.lang.String;" tokens ^"[Ljava.lang.String;" tags]
+(.chunkAsSpans chunker tokens tags))
+
 
 (defn- extend-opennlp-ner 
 "Entry point for extending openNLP TokenNameFinder implementations to some key protocols (e.g. IComponent).
  Call this in your own namespace to make all openNLP-NER components symbiotic with cluja components." 
-([spans?]
+([string-extractor]
 (extend-type opennlp.tools.namefind.TokenNameFinder ;; all NER modules of openNLP
 IComponent
 (run 
 ([this token-seq] 
   (run this token-seq nil))
-([this token-seq context] 
+([this token-seq context]
+(let [pf (or string-extractor (fn [spans _] spans))] ;;decide what fn to use up-front
  (if-not context
- (if (help/two-d? token-seq) (map #((if spans? (fn [spans _] (identity spans)) spans->strings) (.find this (into-array ^String %)) (into-array ^String %)) token-seq) 
-                                   ((if spans? (fn [spans _] (identity spans)) spans->strings) (.find this (into-array ^String token-seq)) (into-array ^String token-seq)))
- (if (help/two-d? token-seq) (map #((if spans? (fn [spans _] (identity spans)) spans->strings) (.find this (into-array ^String %) context) (into-array ^String token-seq))) 
-                                  #((if spans? (fn [spans _] (identity spans)) spans->strings) (.find this (into-array ^String token-seq) context) (into-array ^String token-seq)))  
- )) )
+ (if (help/two-d? token-seq) 
+ (map #(pf (.find this (into-array ^String %)) (into-array ^String %)) token-seq)
+  (let [^"[Ljava.lang.String;" tok-array (into-array ^String token-seq)] 
+      #(pf (.find this tok-array) tok-array)))
+ (if (help/two-d? token-seq) 
+ (map #(pf (.find this (into-array ^String %) context) (into-array ^String %)) token-seq)
+   (let [tok-array (into-array ^String token-seq)] 
+      #(pf (.find this tok-array context) tok-array)))  
+ ))) )
 (link [this pos other] 
-  (Workflow. (hotel_nlp.helper/link this pos other))) ))
-([] (extend-opennlp-ner false)) ) 
+  (help/linkage this pos other)) ))
+([] (extend-opennlp-ner nil)) ) 
   
 (defn- extend-opennlp-pos []
 (extend-type opennlp.tools.postag.POSTagger ;; all POS-tagging modules of openNLP
@@ -68,7 +79,7 @@ IComponent
  (if (help/string-array? token-seq) (.tag this token-seq context)    
    (map #(.tag this (if (help/string-array? %) % (into-array %)) context) token-seq))))
 (link [this pos other] 
-  (Workflow. (hotel_nlp.helper/link this pos other))) ) )  
+  (help/linkage this pos other)) ) )  
   
 (defn- extend-opennlp-tokenizers 
 []
@@ -80,9 +91,9 @@ IComponent
 ([this s offsets?]
   (case offsets?
     true  (if (help/string-array? s) (map #(.tokenizePos this %) s) (.tokenizePos this s))  ;;will return a Span[]
-    false (if (help/string-array? s) (map #(.tokenize this %)    s) (.tokenize this s)))))   ;;will return a String[])) ;;will return a String[]
+    false (if (help/string-array? s) (map #(.tokenize this %)    s) (.tokenize this s)))))   ;;will return a String[]
 (link [this pos other] 
-  (Workflow. (hotel_nlp.helper/link this pos other))) )
+  (help/linkage this pos other)) )
 )
 
 
@@ -98,7 +109,7 @@ IComponent
   (if offsets? (.sentDetectPos this s) ;;will return a Span[]
                (.sentDetect this s)))) ;;will return a String[]
 (link [this pos other] 
-  (Workflow. (hotel_nlp.helper/link this pos other))) )
+  (help/linkage this pos other)) )
 )
 
    
@@ -110,10 +121,10 @@ IComponent
 ([this s] 
   (.stem this s))) ;;will return a String
 (link [this pos other] 
-  (Workflow. (hotel_nlp.helper/link this pos other))) )
+  (help/linkage this pos other)) )
 )
 
-(defn- -parse [obj tokens nums]
+(defn- -parse "I hate this code!" [obj tokens nums]
 (if nums 
 (let [^String sentence (apply str (interpose " " tokens))]
 (.parse ^opennlp.tools.parser.Parser obj       
@@ -153,47 +164,42 @@ IComponent
   (map  (if (> nums 1) #(run this % nums) #(run this %)) tokens) 
   (-parse this tokens nums))))
 (link [this pos other] 
-  (Workflow. (hotel_nlp.helper/link this pos other))) )
+  (help/linkage this pos other)) ) 
 )
 
-(defn- extend-opennlp-chunkers []
+(defn- extend-opennlp-chunkers 
+([span-extractor]
 (extend-type opennlp.tools.chunker.Chunker ;; all Chunking modules of openNLP
 IComponent
 (run [this tokens tags]
- (if (and (help/two-d? tokens) (help/two-d? tokens))  (map #(run this % %2) tokens tags) 
-  ;(map #(.chunk this (if (help/string-array? %1) %1 (into-array ^String %1)) 
-   ;                  (if (help/string-array? %2) %2 (into-array ^String %2))) tokens tags)    
-  (.chunk this (if (help/string-array? tokens) tokens (into-array ^String tokens)) 
-               (if (help/string-array? tags)   tags   (into-array ^String tags))))) ;;will return a String[]
+ (let [pf (or span-extractor #(.chunk ^opennlp.tools.chunker.Chunker  %1 ^"[Ljava.lang.String;" %2 ^"[Ljava.lang.String;" %3))]
+ (if (and (help/two-d? tokens) (help/two-d? tags)) (map #(run this % %2) tokens tags)     
+  (pf this (if (help/string-array? tokens) tokens (into-array ^String tokens)) 
+            (if (help/string-array? tags)   tags   (into-array ^String tags)))))) ;;will return a String[]
 (link [this pos other] 
-  (Workflow. (hotel_nlp.helper/link this pos other))) )
+  (help/linkage this pos other)) ))
+([] (extend-opennlp-chunkers nil))  
 )
 
 (defn- extend-openlp-coref []
 (extend-type opennlp.tools.coref.Linker 
 IComponent
-(run [this parse [entity spans sent-no]] ;TODO extend-coref properly
+(run [this ^opennlp.tools.parser.Parse parse [entity spans sent-no]] 
  (if (try (seq? parse) (catch IllegalArgumentException ile false))  
  (.getEntities this  (into-array 
    (reduce #(let [temp %] (java.util.Collections/addAll % %2) %) (java.util.ArrayList.) 
-     (map #(run this %1 [entity spans %2]) parse (range)))))   
- (do
- (for [s spans :when (seq s)]  
+     (map #(run this %1 [entity (nth spans %2) %2]) parse (range)))))   
+ (do (println (seq spans)) ;(opennlp.tools.parser.Parse/addNames entity spans (.getTagNodes  parse))
+ (for [s spans]  
         (opennlp.tools.parser.Parse/addNames entity s (.getTagNodes  parse)))
 (let [extents (.getMentions (.getMentionFinder this) (opennlp.tools.coref.mention.DefaultParse. parse sent-no))] 
-(doseq [ex extents]
+(doseq [^opennlp.tools.coref.mention.Mention ex extents]
  (when (nil? (.getParse ex))
    (let [dfp  (opennlp.tools.parser.Parse. (.getText parse) (.getSpan ex) "NML" 1.0 0)]
      (.insert parse dfp)
      (.setParse ex (opennlp.tools.coref.mention.DefaultParse. dfp sent-no))))) extents))))
 (link [this pos other] 
-  (Workflow. (hotel_nlp.helper/link this pos other)))))
-     
-     
-     #_(for [s spans :when (seq s)] 
-        (dotimes [i (count s)]
-          (opennlp.tools.parser.Parse/addNames entity (nth s i) (.getTagNodes (try (nth parse i)
-                                                                (catch UnsupportedOperationException e (do (println "EXCEPTION!") parse)))))))
+  (help/linkage this pos other))))
 
 
 (def OPENNLP-extensions 
@@ -260,7 +266,7 @@ IComponent
   (if (= (first modules) :all) 
    (doseq [[_ f] OPENNLP-extensions] (f)) ;;extend everything we've got so far!
    (doseq [m modules]
-     (if-let [f (get OPENNLP-extensions m)] (f)  ;;extension exists - invoke it
+     (if-let [f (get OPENNLP-extensions m)] (f)  ;;extension exists - invoke it with no args
       (throw (IllegalArgumentException. (str "Module " m " is not a valid openNLP module or it has not been extended yet..."))))))) 
       
 (defn extend-opennlp
@@ -357,7 +363,7 @@ IComponent
   `(extend-protocol IComponent
      ~@(emit-IComponent-impls* syms)))
      
-(defn- extract-annotators [stanford-pipe individuals?]
+(defn extract-annotators [^StanfordCoreNLP stanford-pipe individuals?]
  (let [properties  (.getProperties stanford-pipe)
        an-string   (.getProperty ^java.util.Properties properties "annotators")
        individuals (.split ^String an-string "[, \t]+")] ;;split the string exactly how they split it 
