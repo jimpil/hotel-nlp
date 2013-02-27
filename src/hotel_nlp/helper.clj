@@ -25,7 +25,11 @@
 (definline testables 
 "Returns all the vars from the given namespace with the :test key present in their meta-data." 
  [nspace]
- `(for [[_# v#] (ns-map ~nspace) :when (:test (meta v#))] v#)) 
+ `(for [[_# v#] (ns-map ~nspace) :when (:test (meta v#))] v#))
+
+
+(defmacro linkage [obj pos other]
+`(hotel_nlp.concretions.models.Workflow. (hotel_nlp.helper/link ~obj ~pos ~other)))  
  
  ;(run-tests)
 
@@ -323,8 +327,8 @@ ordering."
 (let [others (if (satisfies? pro/IWorkflow c2) (pro/getComponents c2) c2)]
  (case pos 
    :before  (if (map? others) (vector c1 others) (apply vector c1 others)) 
-   :after   (if (map? others) (vector others c1) (apply vector others '(c1)))
- "Not a valid position.")))
+   :after   (if (map? others) (vector others c1) (apply vector others [c1]))
+ "pos can be either :before or :after")))
    
 (defn pool-map 
 "A saner, more disciplined version of pmap. 
