@@ -1,6 +1,6 @@
 (ns hotel_nlp.tools.spellcheck.spelling
   (:require [hotel_nlp.helper :as help]
-            #_[hotel_nlp.algorithms.levenshtein :refer [levenshtein-distance]]))
+            [hotel_nlp.algorithms.levenshtein :refer [levenshtein-distance]]))
 
 ;;a quite literal translation of Peter Norvig's spell checker
 ;;taken from the Wiki (http://en.wikibooks.org/wiki/Clojure_Programming/Examples/Norvig_Spelling_Corrector) - apparently his majesty Rich wrote this!
