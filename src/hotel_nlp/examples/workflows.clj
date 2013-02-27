@@ -10,12 +10,21 @@
    )
    (:import [hotel_nlp.concretions.models Workflow HMM-POS-tagger])
 )
-;;these come first
+(def ^java.util.Properties s-properties (System/getProperties)) ;just in case we need them
+(.setProperty s-properties "WNSEARCHDIR", "/home/sorted/WordNet-3.0/dict/") ;better to do this here rather than in project.clj (I think!)
+                                          ;"/home/sorted/WordNet-3.0/dict/"
+;;these should come first
 (bin/extend-opennlp)
-;(bin/extend-opennlp :modules [[:ner true]])
+;(bin/extend-opennlp :modules [[:ner bin/spans->strings] [:chunk bin/chunk->spans]])
 (bin/extend-stanford-core)
-(def sample ;;some sample sentences from the BBC news website
-"Any edit that changes content in a way that deliberately compromises the integrity of Wikipedia is considered vandalism. The most common and obvious types of vandalism include insertion of obscenities and crude humor. Vandalism can also include advertising language, and other types of spam. Sometimes editors commit vandalism by removing information or entirely blanking a given page. Less common types of vandalism, such as the deliberate addition of plausible but false information to an article, can be more difficult to detect. Vandals can introduce irrelevant formatting, modify page semantics such as the page's title or categorization, manipulate the underlying code of an article, or utilize images disruptively. Mr. Brown is dead after someone shot him!")  
+
+
+(def bbc-sample ;;some bbc-sample sentences from the BBC news website
+"Any edit that changes content in a way that deliberately compromises the integrity of Wikipedia is considered vandalism. The most common and obvious types of vandalism include insertion of obscenities and crude humor. Vandalism can also include advertising language, and other types of spam. Sometimes editors commit vandalism by removing information or entirely blanking a given page. Less common types of vandalism, such as the deliberate addition of plausible but false information to an article, can be more difficult to detect. Vandals can introduce irrelevant formatting, modify page semantics such as the page's title or categorization, manipulate the underlying code of an article, or utilize images disruptively. Mr. Brown is dead after someone shot him!") 
+(def op-sample
+"Pierre Vinken, 61 years old, will join the board as a nonexecutive director Nov. 29. Mr. Vinken is chairman of Elsevier N.V., the Dutch publishing group. Rudolph Agnew, 55 years old and former chairman of Consolidated Gold Fields PLC, was named a director of this British industrial conglomerate.")
+(def easy-sample "Mary likes pizza but she also likes kebaps. Knowing her, I'd give it 2 weeks before she turns massive!")
+
 
 (defcomponent opennlp-tok    "openNLP's simple tokenizer"    bin/opennlp-simple-tok)
 (defcomponent opennlp-ssplit "openNLP's maxent sentence-splitter" (bin/opennlp-me-ssplit))
@@ -55,8 +64,9 @@
   opennlp-tok
   opennlp-ner 
  ) 
- 
-;; (run linker (deploy opennlp-parsing-pipe sample) ["person" (deploy opennlp-ner-pipe sample) nil])
+
+; (run opennlp-coref (deploy opennlp-parsing-pipe bbc-sample) ["person" (deploy opennlp-ner-pipe bbc-sample) nil])
+; (filter #(< 1 (.getNumMentions ^opennlp.tools.coref.DiscourseEntity %)) *1)
  
  
 (defworkflow mixed-pipe1 "a pipe with mixed components" my-ssplit my-tokenizer opennlp-pos) 
@@ -64,26 +74,25 @@
 
 ;;openNLP's chunker expects both tokens and pos-tags. This makes it slightly odd to use inside the workflow.  
 ;;nothing stops us to use it outside though. For example one can do this:
-#_(let [redux (deploy opennlp-basic-pipe sample true)] ;;deploy the standard workflow first and ask for reductions
+#_(let [redux (deploy opennlp-basic-pipe easy-sample true)] ;;deploy the standard workflow first and ask for reductions
  (run opennlp-chunk   (nth redux 2)   ;the tokens
                       (nth redux 3))) ;the pos-tags 
                     
 ;;or this (nice demo of fn->component as well)
-
 (defworkflow opennlp-chunking-pipe "A chunking openNLP workflow." 
                    (fn->component #(deploy mixed-pipe1 % true)) ;notice how now we're using mixed-pipe1 - no difference! 
                    (fn->component #(zipmap (nth % 2)  (nth % 3))) 
-                   (fn->component (fn [m] (run opennlp-chunk (keys m) (vals m)))))
-;(deploy opennlp-chunking-pipe sample) 
+                   (fn->component #(reverse (run opennlp-chunk (keys %) (vals %))))) ;;reverse here due to zipping
+;(deploy opennlp-chunking-pipe bbc-sample) 
                 
   
-(def stanford-pipe "A common stanford-nlp workflow."  ;;it is already a workflow - no need to use 'defworkflow'
-  (bin/new-coreNLP (bin/new-properties "annotators" "tokenize" "ssplit" "pos" "lemma")))
+#_(def stanford-pipe "A common stanford-nlp workflow."  ;;it is already a workflow - no need to use 'defworkflow'
+  (bin/new-coreNLP (bin/new-properties "annotators" "tokenize" "ssplit" "pos" "lemma" ))) ;"ner" "parse" "dcoref"
 
 ;;deploy the 2 workflows in parallel 
-(defn opennlp-vs-stanford [] 
-(let [stanford-res (future (bin/squeeze-annotation (deploy stanford-pipe sample)))
-      opennlp-res  (future (deploy opennlp-basic-pipe sample))]
+#_(defn opennlp-vs-stanford [] 
+(let [stanford-res (future (bin/squeeze-annotation (deploy stanford-pipe bbc-sample)))
+      opennlp-res  (future (deploy opennlp-basic-pipe bbc-sample))]
     {:opennlp  @opennlp-res 
      :stanford @stanford-res}  )  )
 
