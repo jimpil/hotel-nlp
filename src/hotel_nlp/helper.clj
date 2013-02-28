@@ -10,7 +10,7 @@
         [clojure.java.io       :as io]
         [clojure.core.reducers :as r]
         [clojure.test :refer [with-test is run-tests]]
-        [hotel_nlp.protocols       :as pro]
+        [hotel_nlp.protocols   :as pro]
      )
    (:import [java.io File FileFilter StringReader]
             [java.util.regex Pattern PatternSyntaxException]
@@ -226,8 +226,8 @@ only when there's a non-map at a particular level.
 (is (= 1 (dim-no [3 4 5]))) 
 (is (= 2 (dim-no [[3 4] [5 6]])))
 (is (= 3 (dim-no [[[1 2 3] [4 5 6]] [[7 8 9] [10 11 12]]])))
-(is (= 1 (dim-no (java.util.ArrayList. 10))))
-(is (= 2 (dim-no (doto (java.util.ArrayList. 10) (.add (java.util.ArrayList. 5))))))
+(is (= 1 (dim-no (doto (java.util.ArrayList.) (.add 10) (.add 30)))))
+(is (= 2 (dim-no (doto (java.util.ArrayList. 10) (.add (doto (java.util.ArrayList.) (.add 0) ))))))
 )
  
 
