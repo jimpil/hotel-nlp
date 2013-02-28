@@ -1,7 +1,7 @@
 (ns hotel_nlp.examples.workflows
    (:require  [hotel_nlp.protocols :refer :all]
               [hotel_nlp.externals.bindings :as bin]
-              [hotel_nlp.concretions.models :refer :all]
+              ;[hotel_nlp.concretions.models :refer :all]
               [hotel_nlp.concretions.artefacts :refer [reg-seg reg-tok stemmer brown-nltk-pos-probs]]
               [hotel_nlp.algorithms.viterbi :as vit]
               [hotel_nlp.helper :as help]
@@ -12,9 +12,10 @@
 )
 (def ^java.util.Properties s-properties (System/getProperties)) ;just in case we need them
 
-;(.setProperty s-properties "WNSEARCHDIR", "/home/sorted/WordNet-3.0/dict/") ;better to do this here rather than in project.clj (I think!)
-(.setProperty s-properties "WNSEARCHDIR", "/home/dimitris/WordNet-3.0/dict/") 
-(.setProperty s-properties "gate-home", "/home/dimitris/gate/lib/")
+(.setProperty s-properties "WNSEARCHDIR", "/home/sorted/WordNet-3.0/dict/") ;better to do this here rather than in project.clj (I think!)
+;(.setProperty s-properties "WNSEARCHDIR", "/home/dimitris/WordNet-3.0/dict/") 
+(.setProperty s-properties "gate-home", "/home/sorted/gate/lib/")
+;(.setProperty s-properties "gate-home", "/home/dimitris/gate/lib/")
 ;;these should come first
 (bin/extend-opennlp)
 ;(bin/extend-opennlp :modules [[:ner bin/spans->strings] [:chunk bin/chunk->spans]])
