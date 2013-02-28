@@ -5,6 +5,7 @@
     )
     (:import  [hotel_nlp.concretions.models Workflow]    
               ;[opennlp.tools.namefind TokenNameFinder]
+              [java.io FileInputStream]
               [opennlp.tools.util Span]
               [edu.stanford.nlp.pipeline Annotator AnnotationPipeline StanfordCoreNLP Annotation]
     )
@@ -19,12 +20,12 @@
   
  #_(-> (opennlp.tools.namefind.DictionaryNameFinder. 
         (opennlp.tools.namefind.Dictionary. 
-         (java.io.FileInputStream. "drugbank-opennlp.txt")))         
+         (FileInputStream. "drugbank-opennlp.txt")))         
    (run  ["azestapine" "treatment" "is" "10" "times" "more" "effective" "."]))
    
 #_(-> (opennlp.tools.namefind.NameFinderME. 
        (opennlp.tools.namefind.TokenNameFinderModel.
-        (java.io.FileInputStream. (java.io.File. 
+        (FileInputStream. (clojure.java.io/file 
                                   (clojure.java.io/resource "pretrained_models/opennlp/en-ner-person.bin")))))
   (run ["Mr." "Anderson" "won" "election" "over" "his" "opponent" "Sir." "Brown" "."])) 
      
@@ -54,19 +55,11 @@ IComponent
 ([this token-seq] 
   (run this token-seq nil))
 ([this token-seq context]
-<<<<<<< Updated upstream
 (let [pf (or string-extractor (fn [spans _] spans))] ;;decide what fn to use up-front
  (if-not context
  (if (help/two-d? token-seq) 
  (map #(pf (.find this (into-array ^String %)) (into-array ^String %)) token-seq)
   (let [^"[Ljava.lang.String;" tok-array (into-array ^String token-seq)] 
-=======
-(let [pf (if spans? (fn [spans _] spans) spans->strings)] ;;decide what fn to use up-front
- (if-not context
- (if (help/two-d? token-seq) 
- (map #(pf (.find this (into-array ^String %)) (into-array ^String %)) token-seq)
-  (let [tok-array (into-array ^String token-seq)] 
->>>>>>> Stashed changes
       #(pf (.find this tok-array) tok-array)))
  (if (help/two-d? token-seq) 
  (map #(pf (.find this (into-array ^String %) context) (into-array ^String %)) token-seq)
@@ -229,37 +222,37 @@ IComponent
 ([model-resource-path] 
  (opennlp.tools.sentdetect.SentenceDetectorME. 
    (opennlp.tools.sentdetect.SentenceModel.
-   (java.io.FileInputStream. 
-   (java.io.File.  model-resource-path))))))
+   (FileInputStream. 
+   (clojure.java.io/file  model-resource-path))))))
 
 (defn opennlp-me-pos 
 ([] (opennlp-me-pos "resources/pretrained_models/opennlp/en-pos-maxent.bin"))
 ([model-resource-path] 
  (opennlp.tools.postag.POSTaggerME. 
    (opennlp.tools.postag.POSModel.
-   (java.io.FileInputStream.
-    (java.io.File. model-resource-path))))))
+   (FileInputStream.
+    (clojure.java.io/file model-resource-path))))))
 
 (defn opennlp-me-ner 
 ([] (opennlp-me-ner "resources/pretrained_models/opennlp/en-ner-person.bin"))
 ([model-resource-path] 
  (opennlp.tools.namefind.NameFinderME. 
  (opennlp.tools.namefind.TokenNameFinderModel.
-  (java.io.FileInputStream. (java.io.File.  model-resource-path))))))
+  (FileInputStream. (clojure.java.io/file  model-resource-path))))))
   
 (defn opennlp-me-chunk 
 ([] (opennlp-me-chunk "resources/pretrained_models/opennlp/en-chunker.bin")) 
 ([model-path] 
  (opennlp.tools.chunker.ChunkerME.
    (opennlp.tools.chunker.ChunkerModel.
-    (java.io.FileInputStream. (java.io.File. model-path)))))) 
+    (FileInputStream. (clojure.java.io/file model-path)))))) 
   
 (defn opennlp-me-parse 
 ([] (opennlp-me-parse "resources/pretrained_models/opennlp/en-parser-chunking.bin")) 
 ([model-path] 
  (opennlp.tools.parser.ParserFactory/create
    (opennlp.tools.parser.ParserModel.
-    (java.io.FileInputStream. (java.io.File. model-path)))))) 
+    (FileInputStream. (clojure.java.io/file model-path)))))) 
     
 (defn opennlp-me-coref 
 ([] (opennlp-me-coref "resources/pretrained_models/opennlp/coref/opennlp.sourceforge.net/models-1.4/english/coref/")) 
@@ -371,11 +364,7 @@ IComponent
   `(extend-protocol IComponent
      ~@(emit-IComponent-impls* syms)))
      
-<<<<<<< Updated upstream
 (defn extract-annotators [^StanfordCoreNLP stanford-pipe individuals?]
-=======
-(defn extract-annotators [stanford-pipe individuals?]
->>>>>>> Stashed changes
  (let [properties  (.getProperties stanford-pipe)
        an-string   (.getProperty ^java.util.Properties properties "annotators")
        individuals (.split ^String an-string "[, \t]+")] ;;split the string exactly how they split it 
@@ -412,23 +401,26 @@ IWorkflow
 ;(def props (new-properties "annotators" "tokenize" "ssplit" "pos" "lemma" "regexner" "parse" "dcoref")) 
 ;(def annotator (new-coreNLP props)) 
 ;------------------------------------------>GATE-EMBEDED<---------------------------------------------------
-(definline gate-init [^String annie-dir]
-`(do (Gate/init)  
-   (.registerDirectories (Gate/getCreoleRegister) 
-        (doto (java.io.File. ~annie-dir) (.toURL)))))
+(definline gate-init [] ;;there will be log4j warnings - ignore
+`(do (gate.Gate/init)  
+   (.registerDirectories (gate.Gate/getCreoleRegister) 
+        (.toURL (clojure.java.io/file (gate.Gate/getPluginsHome) "Tools")))))
 
 (defn extend-gate []
 (extend-type gate.Executable
 IComponent
 (run 
-([this] 
- (.execute this)
- (.getAnnotations ^gate.Document (.getDocument ^gate.creole.AbstractLanguageAnalyser this)))
-(run [this _] 
- (run this)))
+([this]
+(do 
+  (.execute this)
+  (.getAnnotations ^gate.Document (.getDocument ^gate.creole.AbstractLanguageAnalyser this))))
+([this _] 
+ (run this)) )
 (link [this pos other] 
-  (Workflow. (hotel_nlp.helper/link this pos other))) )
-)
+  (help/linkage this pos other)) )
+#_(extend-type gate.creole.SerialAnalyserController
+IWorkflow
+(deploy [this] (run this))) )
  
  
 
