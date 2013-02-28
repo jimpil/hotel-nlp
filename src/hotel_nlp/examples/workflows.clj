@@ -11,20 +11,30 @@
    (:import [hotel_nlp.concretions.models Workflow HMM-POS-tagger])
 )
 (def ^java.util.Properties s-properties (System/getProperties)) ;just in case we need them
+<<<<<<< Updated upstream
 (.setProperty s-properties "WNSEARCHDIR", "/home/sorted/WordNet-3.0/dict/") ;better to do this here rather than in project.clj (I think!)
                                           ;"/home/sorted/WordNet-3.0/dict/"
+=======
+(.setProperty s-properties "WNSEARCHDIR", "/home/dimitris/WordNet-3.0/dict/") ;better to do this here rather than in project.clj (I think!)
+(.setProperty s-properties "gate-home", "/home/dimitris/WordNet-3.0/dict/")
+>>>>>>> Stashed changes
 ;;these should come first
 (bin/extend-opennlp)
 ;(bin/extend-opennlp :modules [[:ner bin/spans->strings] [:chunk bin/chunk->spans]])
 (bin/extend-stanford-core)
 
 
+<<<<<<< Updated upstream
 (def bbc-sample ;;some bbc-sample sentences from the BBC news website
 "Any edit that changes content in a way that deliberately compromises the integrity of Wikipedia is considered vandalism. The most common and obvious types of vandalism include insertion of obscenities and crude humor. Vandalism can also include advertising language, and other types of spam. Sometimes editors commit vandalism by removing information or entirely blanking a given page. Less common types of vandalism, such as the deliberate addition of plausible but false information to an article, can be more difficult to detect. Vandals can introduce irrelevant formatting, modify page semantics such as the page's title or categorization, manipulate the underlying code of an article, or utilize images disruptively. Mr. Brown is dead after someone shot him!") 
 (def op-sample
 "Pierre Vinken, 61 years old, will join the board as a nonexecutive director Nov. 29. Mr. Vinken is chairman of Elsevier N.V., the Dutch publishing group. Rudolph Agnew, 55 years old and former chairman of Consolidated Gold Fields PLC, was named a director of this British industrial conglomerate.")
 (def easy-sample "Mary likes pizza but she also likes kebaps. Knowing her, I'd give it 2 weeks before she turns massive!")
 
+=======
+(def sample ;;some sample sentences from the BBC news website
+"Any edit that changes content in a way that deliberately compromises the integrity of Wikipedia is considered vandalism. The most common and obvious types of vandalism include insertion of obscenities and crude humor. Vandalism can also include advertising language, and other types of spam. Sometimes editors commit vandalism by removing information or entirely blanking a given page. Less common types of vandalism, such as the deliberate addition of plausible but false information to an article, can be more difficult to detect. Vandals can introduce irrelevant formatting, modify page semantics such as the page's title or categorization, manipulate the underlying code of an article, or utilize images disruptively. Mr. Brown is dead after someone shot him!")  
+>>>>>>> Stashed changes
 
 (defcomponent opennlp-tok    "openNLP's simple tokenizer"    bin/opennlp-simple-tok)
 (defcomponent opennlp-ssplit "openNLP's maxent sentence-splitter" (bin/opennlp-me-ssplit))
@@ -65,7 +75,11 @@
   opennlp-ner 
  ) 
 
+<<<<<<< Updated upstream
 ; (run opennlp-coref (deploy opennlp-parsing-pipe bbc-sample) ["person" (deploy opennlp-ner-pipe bbc-sample) nil])
+=======
+; (run opennlp-coref (deploy opennlp-parsing-pipe sample) ["person" (deploy opennlp-ner-pipe sample) nil])
+>>>>>>> Stashed changes
 ; (filter #(< 1 (.getNumMentions ^opennlp.tools.coref.DiscourseEntity %)) *1)
  
  
@@ -82,8 +96,13 @@
 (defworkflow opennlp-chunking-pipe "A chunking openNLP workflow." 
                    (fn->component #(deploy mixed-pipe1 % true)) ;notice how now we're using mixed-pipe1 - no difference! 
                    (fn->component #(zipmap (nth % 2)  (nth % 3))) 
+<<<<<<< Updated upstream
                    (fn->component #(reverse (run opennlp-chunk (keys %) (vals %))))) ;;reverse here due to zipping
 ;(deploy opennlp-chunking-pipe bbc-sample) 
+=======
+                   (fn->component #(run opennlp-chunk (keys %) (vals %))))
+;(deploy opennlp-chunking-pipe sample) 
+>>>>>>> Stashed changes
                 
   
 #_(def stanford-pipe "A common stanford-nlp workflow."  ;;it is already a workflow - no need to use 'defworkflow'
