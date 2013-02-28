@@ -38,7 +38,7 @@
 (train [this data]))
 
 (defprotocol IComponent
-(run [this args] [this args more])
+(run [this] [this args] [this args more])
 (getIOTypes  [this])
 (link [this position other])) ;;:before or :after some component
 
@@ -51,7 +51,7 @@
 (appendComponent [this component])
 (removeComponent [this pos])
 (replaceComponent [this pos replacement])
-(deploy [this text] [this text intermediates?]))
+(deploy [this] [this text] [this text intermediates?]))
 
 (defprotocol IFFilter
 (select [this ffilter]))
