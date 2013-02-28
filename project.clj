@@ -14,6 +14,7 @@
                  [experiment/experiment "1.5.3"] ;OPENNLP HACKED
                  [net.sf.jwordnet/jwnl "1.4_rc3"] ;latest
                  ;[org.clojars.pjt/jwnl "1.3.3"] ;old
+                 [uk.ac.gate/gate-core "7.1"]
                  [org.apache.lucene/lucene-snowball "3.0.3"]
                  [org.apache.pdfbox/pdfbox "1.7.1"]
                  ]
@@ -25,7 +26,7 @@
             ]
   ;:jar-name           ; name of the jar produced by 'lein jar'
   ;:uberjar-name "cluja-standalone.jar" ; same for 'lein uberjar'
-  ;:resource-paths ["~/Downloads/*.jar"]  
+  :resource-paths ["resources" "~/gate-7.1-build4485-ALL/lib/*.jar"]  
   ;:java-source-paths ["src/java"]
   ;:aot []
   ;:warn-on-reflection true
