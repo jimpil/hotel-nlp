@@ -75,11 +75,13 @@
  (deploy [_ text intermediates?] 
     ((if intermediates? reductions reduce) 
       (fn [init c] (run c init)) text components))
- (deploy [this text] (deploy this text false))                        
+ (deploy [this text] (deploy this text false))
+ ;(deploy [this] (deploy this))                         
 IComponent
  (link [this pos other]
-   (Workflow. (help/link this pos other))) 
- (run [this text] (deploy this text))
+   (Workflow. (help/link this pos other)))
+ ;(run [this] (deploy this))   
+ (run [this text]  (reduce #(run %2 %) text components))
  ;(run [this text & more] (deploy this text (first more))) 
 clojure.lang.IFn  ;;can act as an fn
   (invoke [this arg]
@@ -106,7 +108,7 @@ IComponent
 (getIOTypes [_] {:input  input 
                  :output output}) 
 (link [this pos other]
-  (Workflow. (help/link this pos other)))
+  (help/linkage this pos other))
 (run [this s] 
 (if (string? s) 
   (segment this s) 
@@ -127,7 +129,7 @@ IComponent
 (getIOTypes [_] {:input  input 
                  :output output}) 
 (link [this pos other]
-  (Workflow. (help/link this pos other)))
+  (help/linkage this pos other))
 (run [this strings] (stick this strings))
 clojure.lang.IFn  ;;can act as an fn
   (invoke [this arg]
@@ -143,7 +145,7 @@ IComponent
 (getIOTypes [_] {:input  input 
                  :output output}) 
 (link [this pos other]
- (Workflow. (help/link this pos other))) 
+  (help/linkage this pos other)) 
 (run [this sentence] 
   (if (string? sentence) 
   (tokenize this sentence) 
@@ -161,7 +163,7 @@ IComponent
                  :output output})  
 (run [_ s]  (ngrams s n))
 (link [this pos other] 
- (Workflow. (help/link this pos other)))
+ (help/linkage this pos other))
 clojure.lang.IFn  ;;can act as an fn
   (invoke [this arg]
     (run this arg))
@@ -179,7 +181,7 @@ IComponent
 (getIOTypes [_] {:input  input 
                  :output output}) 
 (link [this pos other]
-  (Workflow. (help/link this pos other)))
+  (help/linkage this pos other))
 (run [this s] ;(apply stem this s))) 
   (if (help/two-d? s) (map #(stem this %) s) 
   (stem this s)))
