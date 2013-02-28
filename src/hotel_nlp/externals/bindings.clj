@@ -411,12 +411,7 @@ IWorkflow
      
 ;(def props (new-properties "annotators" "tokenize" "ssplit" "pos" "lemma" "regexner" "parse" "dcoref")) 
 ;(def annotator (new-coreNLP props)) 
-<<<<<<< Updated upstream
-;---------------------------------------->GATE-EMBEDED<-------------------------------------------
-=======
 ;------------------------------------------>GATE-EMBEDED<---------------------------------------------------
-
->>>>>>> Stashed changes
 (definline gate-init [^String annie-dir]
 `(do (Gate/init)  
    (.registerDirectories (Gate/getCreoleRegister) 
@@ -434,10 +429,6 @@ IComponent
 (link [this pos other] 
   (Workflow. (hotel_nlp.helper/link this pos other))) )
 )
-<<<<<<< Updated upstream
-=======
-
->>>>>>> Stashed changes
  
  
 
