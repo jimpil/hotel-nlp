@@ -38,7 +38,7 @@
 (train [this data]))
 
 (defprotocol IComponent
-(run [this] [this args] [this args more])
+(run [this args] [this args more])
 (getIOTypes  [this])
 (link [this position other])) ;;:before or :after some component
 
