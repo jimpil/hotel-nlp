@@ -3,7 +3,7 @@
   :url "https://github.com/jimpil/annotator-clj"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.5.0-RC16"]
+  :dependencies [[org.clojure/clojure "1.5.0"]
  		 [org.clojure/data.zip "0.1.1"]
  		 ;[weissjeffm/clojure.prxml "1.3.0-SNAPSHOT"]
                  ;[org.clojure/tools.cli "0.2.2"]
@@ -13,7 +13,6 @@
                  [org.apache.opennlp/opennlp-maxent "3.0.3-SNAPSHOT"]
                  [experiment/experiment "1.5.3"] ;OPENNLP HACKED
                  [net.sf.jwordnet/jwnl "1.4_rc3"] ;latest
-                 ;[org.clojars.pjt/jwnl "1.3.3"] ;old
                  [uk.ac.gate/gate-core "7.1"]
                  [org.apache.lucene/lucene-snowball "3.0.3"]
                  [org.apache.pdfbox/pdfbox "1.7.1"]
