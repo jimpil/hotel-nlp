@@ -1,12 +1,13 @@
 (ns hotel_nlp.examples.workflows
    (:require  [hotel_nlp.protocols :refer :all]
               [hotel_nlp.externals.bindings :as bin]
-              ;[hotel_nlp.concretions.models :refer :all]
+              ;[hotel_nlp.concretions.models]
               [hotel_nlp.concretions.artefacts :refer [reg-seg reg-tok stemmer brown-nltk-pos-probs]]
               [hotel_nlp.algorithms.viterbi :as vit]
               [hotel_nlp.helper :as help]
               [hotel_nlp.core :refer [defcomponent defworkflow fn->component]]
               [clojure.pprint :refer [pprint print-table]]
+              [clojure.java.io :as io]
    )
    (:import [hotel_nlp.concretions.models Workflow HMM-POS-tagger])
 )
@@ -14,12 +15,13 @@
 
 (.setProperty s-properties "WNSEARCHDIR", "/home/sorted/WordNet-3.0/dict/") ;better to do this here rather than in project.clj (I think!)
 ;(.setProperty s-properties "WNSEARCHDIR", "/home/dimitris/WordNet-3.0/dict/") 
-(.setProperty s-properties "gate-home", "/home/sorted/gate/lib/")
-;(.setProperty s-properties "gate-home", "/home/dimitris/gate/lib/")
+(.setProperty s-properties "gate.home", "/home/sorted/gate-7.1-build4485-ALL/")
+(.setProperty s-properties "gate.plugins.home", "/home/dimitris/gate-7.1-build4485-ALL/plugins/")
 ;;these should come first
 (bin/extend-opennlp)
 ;(bin/extend-opennlp :modules [[:ner bin/spans->strings] [:chunk bin/chunk->spans]])
 (bin/extend-stanford-core)
+(bin/extend-gate)
 
 
 
@@ -44,7 +46,9 @@
 (defcomponent porter-stemmer "my own sentence-splitter" stemmer)
 (defcomponent my-pos-tagger "my own HMM pos-tagger based on bigrams." 
   (HMM-POS-tagger. (comp vit/proper-statistics vit/tables) vit/viterbi {:probs brown-nltk-pos-probs} nil)) ;;pass the pre-observed probabilities as meta-data
- 
+(defcomponent stanford-ssplit "stanford's sentence splitter"  (edu.stanford.nlp.pipeline.WordsToSentencesAnnotator. false))  
+(defcomponent stanford-tok "stanford's revertible tokenizer"  (edu.stanford.nlp.pipeline.PTBTokenizerAnnotator. false))
+;(defcomponent stanford-pos "stanford's maxent pos-tagger"     (edu.stanford.nlp.pipeline.POSTaggerAnnotator. false))   
 
 
 (defworkflow my-stem-pipe "my own basic stemming pipe" my-ssplit my-tokenizer porter-stemmer)
@@ -75,7 +79,14 @@
 ; (filter #(< 1 (.getNumMentions ^opennlp.tools.coref.DiscourseEntity %)) *1)
   
 (defworkflow mixed-pipe1 "a pipe with mixed components" my-ssplit my-tokenizer opennlp-pos) 
-;(defworkflow mixed-pipe2 "another pipe with mixed components" my-ssplit my-tokenizer opennlp-pos)  
+(defworkflow mixed-pipe2 "another pipe with mixed components" my-ssplit stanford-tok opennlp-pos) ;;FAIL 
+(defworkflow mixed-pipe3 "another pipe with mixed components-TWEAK" 
+ my-ssplit
+ (fn->component (fn [sentences] (map #(run stanford-tok 
+                                          (doto (edu.stanford.nlp.pipeline.Annotation. %) 
+                                            (.set edu.stanford.nlp.ling.CoreAnnotations$SentencesAnnotation %))) sentences))) 
+ #_(fn->component (fn [anns] (map #(run opennlp-pos (-> % bin/squeeze-annotation :tokens)) anns))))  
+
 
 ;;openNLP's chunker expects both tokens and pos-tags. This makes it slightly odd to use inside the workflow.  
 ;;nothing stops us to use it outside though. For example one can do this:
@@ -94,6 +105,21 @@
   
 #_(def stanford-pipe "A common stanford-nlp workflow."  ;;it is already a workflow - no need to use 'defworkflow'
   (bin/new-coreNLP (bin/new-properties "annotators" "tokenize" "ssplit" "pos" "lemma" ))) ;"ner" "parse" "dcoref"
+  
+(bin/gate-init) ;;need this to initialise GATE 
+(def gate-pipe "a pure GATE workflow" ;as with satnford - no need to use 'defworkflow'
+ (let [pipe (gate.Factory/createResource "gate.creole.SerialAnalyserController")]
+  (do #_(.registerDirectories (gate.Gate/getCreoleRegister) 
+        (clojure.java.io/as-url (clojure.java.io/file (System/getProperty "user.dir")))) 
+   (reduce #(doto % (.add (gate.Factory/createResource ^String %2))) pipe
+            (into-array ["gate.creole.tokeniser.DefaultTokeniser" 
+                         "gate.creole.splitter.SentenceSplitter"])))))
+#_(.setDocument gate-pipe 
+  (gate.Factory/newDocument (io/as-url (io/file "/home/sorted/clooJWorkspace/hotel-nlp/resources/corpora-train/spelling/dummy.txt"))))
+
+(.setCorpus gate-pipe ;;we typically process a collection od documents -> a corpus
+  (doto (gate.Factory/newCorpus "DUMMY-DOC!") 
+    (.add (gate.Factory/newDocument (io/as-url (io/file "/home/sorted/clooJWorkspace/hotel-nlp/resources/corpora-train/spelling/dummy.txt"))))))                          
 
 ;;deploy the 2 workflows in parallel 
 #_(defn opennlp-vs-stanford [] 
