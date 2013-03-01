@@ -347,11 +347,13 @@ IComponent
    :graph dependency-graph
    :coref coref})) 
 
-;;inspired from clojure/core/protocols.clj    
+;;adopted from clojure/core/protocols.clj    
 (def ^:private co-stub
-'(run [this ^String text] 
+'(run [this text]
+  (if (instance? edu.stanford.nlp.pipeline.Annotation text) 
+      (do (.annotate this text) text) 
    (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
-     (.annotate this ann) ann))) 
+     (.annotate this ann) ann)))) 
 
 (defn- emit-IComponent-impls* [syms]
  (apply concat
@@ -394,7 +396,7 @@ IWorkflow
 (getComponents [this]
  (extract-annotators this true)) )
 (emit-IComponent-impls ;nice trick to avoid enumerating all the identical implementations
-  POSTaggerAnnotator PTBTokenizerAnnotator WordsToSentencesAnnotator 
+  POSTaggerAnnotator PTBTokenizerAnnotator WordsToSentencesAnnotator TokenizerAnnotator
   CleanXmlAnnotator MorphaAnnotator NERCombinerAnnotator RegexNERAnnotator 
   TrueCaseAnnotator ParserAnnotator DeterministicCorefAnnotator) )
      
@@ -404,23 +406,33 @@ IWorkflow
 (definline gate-init [] ;;there will be log4j warnings - ignore
 `(do (gate.Gate/init)  
    (.registerDirectories (gate.Gate/getCreoleRegister) 
-        (.toURL (clojure.java.io/file (gate.Gate/getPluginsHome) "Tools")))))
+        (clojure.java.io/as-url (clojure.java.io/file (gate.Gate/getPluginsHome) gate.creole.ANNIEConstants/PLUGIN_DIR))))) ;;"Tools"
+        
+#_(defn- gate-exec ^gate.AnnotationSet [^gate.LanguageAnalyser obj mode]
+(doto obj .execute)) 
+;(.execute obj)
+; (if (= mode :document) 
+;    (.getDocument obj) 
+;    (.getCorpus obj)))
+    
+           
 
 (defn extend-gate []
 (extend-type gate.Executable
 IComponent
 (run 
-([this]
-(do 
-  (.execute this)
-  (.getAnnotations ^gate.Document (.getDocument ^gate.creole.AbstractLanguageAnalyser this))))
+#_([this]
+(gate-exec this))
 ([this _] 
- (run this)) )
+ (doto this .execute)) )
 (link [this pos other] 
   (help/linkage this pos other)) )
-#_(extend-type gate.creole.SerialAnalyserController
+(extend-type gate.creole.SerialAnalyserController
 IWorkflow
-(deploy [this] (run this))) )
+(deploy [this] (doto this .execute))
+(addComponent [this pos ^gate.ProcessingResource pr] (.add this pos pr))
+(appendComponent [this ^gate.ProcessingResource pr]  (.add this pr))
+) )
  
  
 
