@@ -1,5 +1,5 @@
 (ns hotel_nlp.externals.bindings
-    (:require [hotel_nlp.protocols :refer [IComponent IWorkflow appendComponent run deploy link]]
+    (:require [hotel_nlp.protocols :refer [IComponent IWorkflow IAnnotator appendComponent run deploy link]]
               [hotel_nlp.concretions.models :as models]
               [hotel_nlp.helper :as help]         
     )
@@ -33,7 +33,8 @@
 ;-------------------------------------------->OPENNLP<---------------------------------------------------------
 (defn spans->strings 
 "Convert an array of Spans in to an array of Strings." 
- [^"[Lopennlp.tools.util.Span;" span-array ^"[Ljava.lang.String;" token-array]
+ [^"[Lopennlp.tools.util.Span;" span-array 
+  ^"[Ljava.lang.String;"        token-array]
  (Span/spansToStrings  span-array  token-array))
  
 (defn parse->string [topParses]
@@ -77,8 +78,8 @@ IComponent
 ([this token-seq] 
   (run this token-seq nil))
 ([this token-seq context]
- (if (help/string-array? token-seq) (.tag this token-seq context)    
-   (map #(.tag this (if (help/string-array? %) % (into-array %)) context) token-seq))))
+ (if (help/two-d? token-seq) (map #(.tag this (if (help/string-array? %) % (into-array %)) context) token-seq)
+  (.tag this (if (help/string-array? token-seq) token-seq (into-array token-seq)) context))))
 (link [this pos other] 
   (help/linkage this pos other)) ) )  
   
@@ -329,16 +330,18 @@ IComponent
  nils will be in place of what was not asked fromt he anootations process in the first place." 
  [^edu.stanford.nlp.pipeline.Annotation annotation]
  (let [^java.util.List sentences   (.get annotation edu.stanford.nlp.ling.CoreAnnotations$SentencesAnnotation)
-       token-anns  (for [s    sentences 
+       token-anns  (.get annotation edu.stanford.nlp.ling.CoreAnnotations$TokensAnnotation)
+                 #_(for [s    sentences  
                          tok (.get ^edu.stanford.nlp.util.CoreMap s edu.stanford.nlp.ling.CoreAnnotations$TokensAnnotation)] tok)
        tokens (for [t token-anns] (.get ^edu.stanford.nlp.ling.CoreLabel t edu.stanford.nlp.ling.CoreAnnotations$TextAnnotation))
        pos (for [t token-anns] (.get ^edu.stanford.nlp.ling.CoreLabel t edu.stanford.nlp.ling.CoreAnnotations$PartOfSpeechAnnotation))
        lemmas  (for [t token-anns]   (.get ^edu.stanford.nlp.ling.CoreLabel t edu.stanford.nlp.ling.CoreAnnotations$LemmaAnnotation))
        entities (for [t token-anns]  (.get ^edu.stanford.nlp.ling.CoreLabel t edu.stanford.nlp.ling.CoreAnnotations$NamedEntityTagAnnotation))
-       parse-tree (for [s sentences] (.get ^edu.stanford.nlp.ling.CoreLabel s edu.stanford.nlp.trees.TreeCoreAnnotations$TreeAnnotation))
-       dependency-graph (for [s sentences] (.get ^edu.stanford.nlp.util.CoreMap s edu.stanford.nlp.trees.semgraph.SemanticGraphCoreAnnotations$CollapsedCCProcessedDependenciesAnnotation))
+       parse-tree (for [s sentences] (try (.get ^edu.stanford.nlp.ling.CoreLabel s edu.stanford.nlp.trees.TreeCoreAnnotations$TreeAnnotation) (catch ClassCastException cce nil)))
+       dependency-graph (for [s sentences] 
+              (try (.get ^edu.stanford.nlp.util.CoreMap s edu.stanford.nlp.trees.semgraph.SemanticGraphCoreAnnotations$CollapsedCCProcessedDependenciesAnnotation) (catch ClassCastException cce nil)))
        coref (.get annotation edu.stanford.nlp.dcoref.CorefCoreAnnotations$CorefChainAnnotation)] 
-  {:sentences (for [s sentences] (.get ^edu.stanford.nlp.util.CoreMap s edu.stanford.nlp.ling.CoreAnnotations$TextAnnotation))
+  {:sentences (for [s sentences] (try (.get ^edu.stanford.nlp.util.CoreMap s edu.stanford.nlp.ling.CoreAnnotations$TextAnnotation) (catch ClassCastException cce s)))
    :tokens tokens
    :lemmas lemmas
    :pos pos 
@@ -352,7 +355,7 @@ IComponent
 '(run [this text]
   (if (instance? edu.stanford.nlp.pipeline.Annotation text) 
       (do (.annotate this text) text) 
-   (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
+   (let [ann (edu.stanford.nlp.pipeline.Annotation. ^String text)]
      (.annotate this ann) ann)))) 
 
 (defn- emit-IComponent-impls* [syms]
@@ -380,9 +383,11 @@ IComponent
 []
 (extend-type edu.stanford.nlp.pipeline.StanfordCoreNLP
 IWorkflow
-(deploy [this ^String text] 
+(deploy 
+([this ^String text] 
   (let [ann (edu.stanford.nlp.pipeline.Annotation. text)]
      (.annotate this ann) ann))
+([_ _ _] (throw (IllegalStateException. "Stanford-core pipelines have no notion of intermediate values. Consider using squeeze-annotation after deployment."))) )
 (appendComponent [this co]  ;;appending components is generally not supported by stanfordNLP pipes- you will most likely get a concrete Workflow object back
 (let [ann-string  (extract-annotators this false)]
  (cond 
@@ -416,7 +421,6 @@ IWorkflow
 ;    (.getCorpus obj)))
     
            
-
 (defn extend-gate []
 (extend-type gate.Executable
 IComponent
@@ -433,7 +437,32 @@ IWorkflow
 (addComponent [this pos ^gate.ProcessingResource pr] (.add this pos pr))
 (appendComponent [this ^gate.ProcessingResource pr]  (.add this pr))
 ) )
- 
+;----------------------------------------------->GIMLI<----------------------------------------------------
+
+(definline gimli-corpus [f e]
+`(pt.ua.tm.gimli.corpus.Corpus. ~f ~e))
+
+(definline gimli-Annotator [corpus]
+`(pt.ua.tm.gimli.annotator.Annotator. ~corpus))
+
+(definline gimli-crfmodel [configuration path]
+`(pt.ua.tm.gimli.model.CRFModel. ~configuration pt.ua.tm.gimli.config.Constants$Parsing/FW ~path))
+
+(defn extend-gimli-ner []
+(extend-type pt.ua.tm.gimli.annotator.Annotator
+IComponent
+(run 
+([this ^pt.ua.tm.gimli.model.ICRFBase model] (.annotate this model) (.getCorpus this))
+([this ^pt.ua.tm.gimli.model.ICRFBase model ^String text] 
+  (let [corpus  (.getCorpus this)
+        se      (pt.ua.tm.gimli.corpus.Sentence. corpus)]
+(help/with-resources [parser (pt.ua.tm.gimli.external.gdep.GDepParser. true)] #(.terminate %) 
+  (.launch parser)
+  (.addSentence corpus (doto se (.parse parser text))) 
+    (run this model)))) )
+IAnnotator
+(annotate [this model] (run this model)) )
+)
  
 
  
