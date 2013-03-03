@@ -3,11 +3,13 @@
   :url "https://github.com/jimpil/annotator-clj"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :repositories [["bioinformatics-all" "http://bioinformatics.ua.pt/maven/content/groups/public"]]          
   :dependencies [[org.clojure/clojure "1.5.0"]
  		 [org.clojure/data.zip "0.1.1"]
  		 ;[weissjeffm/clojure.prxml "1.3.0-SNAPSHOT"]
                  ;[org.clojure/tools.cli "0.2.2"]
                  ;[org.apache.opennlp/opennlp-tools "1.5.2-incubating"]
+                 [pt.ua.tm/gimli "1.0.1"] ;;fetch from the specified repository above
                  [edu.stanford.nlp/stanford-corenlp "1.3.4"]
                  [edu.stanford.nlp/stanford-corenlp-models "1.3.4-models"]
                  [org.apache.opennlp/opennlp-maxent "3.0.3-SNAPSHOT"]
