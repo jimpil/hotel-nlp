@@ -1,6 +1,6 @@
 (ns hotel_nlp.core
    (:require  [hotel_nlp.protocols :refer :all]
-              [hotel_nlp.externals.bindings :refer :all]
+              ;[hotel_nlp.externals.bindings :refer :all]
               [hotel_nlp.concretions.models]
               [hotel_nlp.helper :as help]
    )
