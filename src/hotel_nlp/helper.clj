@@ -382,8 +382,8 @@ ordering."
   (boolean 
   (re-find (re-pattern (str ".*" filter)) (.getName ^File f))))))
   
-(defn url? [x]
-(if (instance? java.net.URL x) true false))   
+(definline url? [x]
+`(if (instance? java.net.URL ~x) true false))   
   
 (defn file->data
 "Read the file f back on memory safely (as much as possible). 
@@ -405,6 +405,18 @@ ordering."
 (definline string-array? [a]
 `(if (instance? (Class/forName "[Ljava.lang.String;") ~a) true false))
 
-       
+
+(defmacro with-resources ;;credit to Meikel Brandmeyer (kotarak) for revisiting it fromthe book 'Joy of Clojure'
+"Like 'with-open' but more generic in that it doesn't assume the resources are Closeable." 
+[bindings close-fn & body]
+(assert  (vector? bindings) "bindings must be contained in a vector")
+(assert  (even? (count bindings)) "'with-resources' requires an even number of forms in the binding vector")
+(let [[x v & more] bindings]
+ `(let [~x ~v]
+    (try  ~(if-let [more (seq more)]
+          `(with-resources ~more ~close-fn ~@body)
+          `(do ~@body))
+    (finally
+      (~close-fn ~x))))))     
   
      
