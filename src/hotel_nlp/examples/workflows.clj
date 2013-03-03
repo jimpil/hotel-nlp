@@ -22,6 +22,7 @@
 ;(bin/extend-opennlp :modules [[:ner bin/spans->strings] [:chunk bin/chunk->spans]])
 (bin/extend-stanford-core)
 (bin/extend-gate)
+(bin/extend-gimli-ner)
 
 
 
@@ -30,6 +31,8 @@
 (def op-sample
 "Pierre Vinken, 61 years old, will join the board as a nonexecutive director Nov. 29. Mr. Vinken is chairman of Elsevier N.V., the Dutch publishing group. Rudolph Agnew, 55 years old and former chairman of Consolidated Gold Fields PLC, was named a director of this British industrial conglomerate.")
 (def easy-sample "Mary likes pizza but she also likes kebaps. Knowing her, I'd give it 2 weeks before she turns massive!")
+
+(def bio-sample "BRCA1 and BRCA2 are human genes that belong to a class of genes known as tumor suppressors. Mutation of these genes has been linked to hereditary breast and ovarian cancer.")
 
 (def sample ;;some sample sentences from the BBC news website
 "Any edit that changes content in a way that deliberately compromises the integrity of Wikipedia is considered vandalism. The most common and obvious types of vandalism include insertion of obscenities and crude humor. Vandalism can also include advertising language, and other types of spam. Sometimes editors commit vandalism by removing information or entirely blanking a given page. Less common types of vandalism, such as the deliberate addition of plausible but false information to an article, can be more difficult to detect. Vandals can introduce irrelevant formatting, modify page semantics such as the page's title or categorization, manipulate the underlying code of an article, or utilize images disruptively. Mr. Brown is dead after someone shot him!")  
@@ -48,7 +51,14 @@
   (HMM-POS-tagger. (comp vit/proper-statistics vit/tables) vit/viterbi {:probs brown-nltk-pos-probs} nil)) ;;pass the pre-observed probabilities as meta-data
 (defcomponent stanford-ssplit "stanford's sentence splitter"  (edu.stanford.nlp.pipeline.WordsToSentencesAnnotator. false))  
 (defcomponent stanford-tok "stanford's revertible tokenizer"  (edu.stanford.nlp.pipeline.PTBTokenizerAnnotator. false))
-;(defcomponent stanford-pos "stanford's maxent pos-tagger"     (edu.stanford.nlp.pipeline.POSTaggerAnnotator. false))   
+;(defcomponent stanford-pos "stanford's maxent pos-tagger"     (edu.stanford.nlp.pipeline.POSTaggerAnnotator. false)) 
+
+(defcomponent gimli-bio-ner "the new gimli NER API" 
+  (bin/gimli-Annotator 
+   (bin/gimli-corpus pt.ua.tm.gimli.config.Constants$LabelFormat/BIO 
+    pt.ua.tm.gimli.config.Constants$EntityType/protein))) 
+    
+    ;(run gimli-bio-ner (bin/gimli-crfmodel (pt.ua.tm.gimli.config.ModelConfig. "/home/sorted/GIMLI/bc.config") "/home/sorted/GIMLI/bc2gm_bw_o2.gz") bio-sample) 
 
 
 (defworkflow my-stem-pipe "my own basic stemming pipe" my-ssplit my-tokenizer porter-stemmer)
@@ -79,13 +89,13 @@
 ; (filter #(< 1 (.getNumMentions ^opennlp.tools.coref.DiscourseEntity %)) *1)
   
 (defworkflow mixed-pipe1 "a pipe with mixed components" my-ssplit my-tokenizer opennlp-pos) 
-(defworkflow mixed-pipe2 "another pipe with mixed components" my-ssplit stanford-tok opennlp-pos) ;;FAIL 
-(defworkflow mixed-pipe3 "another pipe with mixed components-TWEAK" 
+(defworkflow mixed-pipe2 "another pipe with mixed components-FAIL" my-ssplit stanford-tok opennlp-pos) ;;FAIL 
+(defworkflow mixed-pipe3 "another pipe with mixed components-SUCC" 
  my-ssplit
- (fn->component (fn [sentences] (map #(run stanford-tok 
-                                          (doto (edu.stanford.nlp.pipeline.Annotation. %) 
-                                            (.set edu.stanford.nlp.ling.CoreAnnotations$SentencesAnnotation %))) sentences))) 
- #_(fn->component (fn [anns] (map #(run opennlp-pos (-> % bin/squeeze-annotation :tokens)) anns))))  
+ (fn->component (fn [sentences] (run stanford-tok 
+                                          (doto (edu.stanford.nlp.pipeline.Annotation. (apply str sentences)) 
+                                            (.set edu.stanford.nlp.ling.CoreAnnotations$SentencesAnnotation sentences))))) 
+ (fn->component (fn [ann] (run opennlp-pos (-> ann bin/squeeze-annotation :tokens))))  )
 
 
 ;;openNLP's chunker expects both tokens and pos-tags. This makes it slightly odd to use inside the workflow.  
@@ -106,18 +116,16 @@
 #_(def stanford-pipe "A common stanford-nlp workflow."  ;;it is already a workflow - no need to use 'defworkflow'
   (bin/new-coreNLP (bin/new-properties "annotators" "tokenize" "ssplit" "pos" "lemma" ))) ;"ner" "parse" "dcoref"
   
-(bin/gate-init) ;;need this to initialise GATE 
-(def gate-pipe "a pure GATE workflow" ;as with satnford - no need to use 'defworkflow'
+#_(bin/gate-init) ;;need this to initialise GATE 
+#_(def gate-pipe "a pure GATE workflow" ;as with stanford - no need to use 'defworkflow'
  (let [pipe (gate.Factory/createResource "gate.creole.SerialAnalyserController")]
-  (do #_(.registerDirectories (gate.Gate/getCreoleRegister) 
-        (clojure.java.io/as-url (clojure.java.io/file (System/getProperty "user.dir")))) 
    (reduce #(doto % (.add (gate.Factory/createResource ^String %2))) pipe
             (into-array ["gate.creole.tokeniser.DefaultTokeniser" 
-                         "gate.creole.splitter.SentenceSplitter"])))))
+                         "gate.creole.splitter.SentenceSplitter"]))))
 #_(.setDocument gate-pipe 
   (gate.Factory/newDocument (io/as-url (io/file "/home/sorted/clooJWorkspace/hotel-nlp/resources/corpora-train/spelling/dummy.txt"))))
 
-(.setCorpus gate-pipe ;;we typically process a collection od documents -> a corpus
+#_(.setCorpus gate-pipe ;;we typically process a collection od documents -> a corpus
   (doto (gate.Factory/newCorpus "DUMMY-DOC!") 
     (.add (gate.Factory/newDocument (io/as-url (io/file "/home/sorted/clooJWorkspace/hotel-nlp/resources/corpora-train/spelling/dummy.txt"))))))                          
 
@@ -127,4 +135,8 @@
       opennlp-res  (future (deploy opennlp-basic-pipe bbc-sample))]
     {:opennlp  @opennlp-res 
      :stanford @stanford-res}  )  )
+     
+     
+     
+     
 
