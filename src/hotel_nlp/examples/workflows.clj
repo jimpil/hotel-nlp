@@ -85,7 +85,14 @@
   opennlp-ner 
  ) 
 
-; (run opennlp-coref (deploy opennlp-parsing-pipe sample) ["person" (deploy opennlp-ner-pipe sample) nil])
+; (run opennlp-coref (deploy opennlp-parsing-pipe op-sample) ["person" (deploy opennlp-ner-pipe op-sample) nil])
+#_(doseq [e ents]
+(loop [m (iterator-seq (.getMentions e))
+       mstring "" ]
+   (if (empty? m) (println "\tMention set:: [ " (str mstring) " ]" )
+    (recur (rest m) 
+      (if (= mstring "") (str (first m)) 
+        (str mstring  " --> "  (str (first m))))))))
 ; (filter #(< 1 (.getNumMentions ^opennlp.tools.coref.DiscourseEntity %)) *1)
   
 (defworkflow mixed-pipe1 "a pipe with mixed components" my-ssplit my-tokenizer opennlp-pos) 
