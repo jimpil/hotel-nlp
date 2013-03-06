@@ -188,18 +188,15 @@ IComponent
 IComponent
 (run [this ^opennlp.tools.parser.Parse parse [entity spans sent-no]] 
  (if (try (seq? parse) (catch IllegalArgumentException ile false))  
- (.getEntities this  (into-array 
-   (reduce #(let [temp %] (java.util.Collections/addAll % %2) %) (java.util.ArrayList.) 
-     (map #(run this %1 [entity (nth spans %2) %2]) parse (range)))))   
- (do (println (seq spans)) ;(opennlp.tools.parser.Parse/addNames entity spans (.getTagNodes  parse))
- (for [s spans]  
-        (opennlp.tools.parser.Parse/addNames entity s (.getTagNodes  parse)))
+ (.getEntities this  (into-array  (mapcat #(run this %1 [entity (nth spans %2) %2]) parse (range))))   
+ (do 
+   (opennlp.tools.parser.Parse/addNames entity spans (.getTagNodes  parse)) ;;add NEs to the parse-tree of each sentence
 (let [extents (.getMentions (.getMentionFinder this) (opennlp.tools.coref.mention.DefaultParse. parse sent-no))] 
 (doseq [^opennlp.tools.coref.mention.Mention ex extents]
  (when (nil? (.getParse ex))
    (let [dfp  (opennlp.tools.parser.Parse. (.getText parse) (.getSpan ex) "NML" 1.0 0)]
      (.insert parse dfp)
-     (.setParse ex (opennlp.tools.coref.mention.DefaultParse. dfp sent-no))))) extents))))
+     (.setParse ex (opennlp.tools.coref.mention.DefaultParse. dfp sent-no)) ))) extents))))
 (link [this pos other] 
   (help/linkage this pos other))))
 
