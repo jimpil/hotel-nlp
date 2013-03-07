@@ -6,6 +6,7 @@
   :repositories [["bioinformatics-all" "http://bioinformatics.ua.pt/maven/content/groups/public"]]          
   :dependencies [[org.clojure/clojure "1.5.0"]
  		 [org.clojure/data.zip "0.1.1"]
+ 		 [org.clojure/tools.nrepl "0.2.2"]
  		 ;[weissjeffm/clojure.prxml "1.3.0-SNAPSHOT"]
                  ;[org.clojure/tools.cli "0.2.2"]
                  ;[org.apache.opennlp/opennlp-tools "1.5.2-incubating"]
@@ -26,8 +27,8 @@
              ;"-DWNSEARCHDIR=/home/dimitris/WordNet-3.0/dict/" ;;need this for jwnl.jar and opennlp-coref
             ]
   ;:jar-name           ; name of the jar produced by 'lein jar'
-  ;:uberjar-name "cluja-standalone.jar" ; same for 'lein uberjar'
-  :resource-paths ["resources" "~/gate-7.1-build4485-ALL/lib/*.jar"]  
+  ;:uberjar-name "hotel-nlp.jar" ; same for 'lein uberjar'
+  :resource-paths ["resources" "~/gate-7.1-build4485-ALL/lib/*.jar" "~/GIMLI/resources" ]  
   ;:java-source-paths ["src/java"]
   ;:aot []
   ;:warn-on-reflection true
