@@ -32,7 +32,8 @@
   (ngrams [this n] 
     (ngrams* this n));;character n-grams
  ITaggable
- (tag [this _ t-scheme] (str (:opening t-scheme) (:middle t-scheme) this (:closing t-scheme)))) 
+ (tag [this _ t-scheme] 
+  (str (:opening t-scheme) (:middle t-scheme) this (:closing t-scheme)))) 
   
 
  ; Allignable
@@ -162,6 +163,22 @@ IComponent
 (getIOTypes [_] {:input  input 
                  :output output})  
 (run [_ s]  (ngrams s n))
+(link [this pos other] 
+ (help/linkage this pos other))
+clojure.lang.IFn  ;;can act as an fn
+  (invoke [this arg]
+    (run this arg))
+  (applyTo [this args]
+    (apply run this args)) )
+
+(defrecord RE-Abbrv [regex input output]
+IComponent
+(getIOTypes [_] {:input  input 
+                 :output output})  
+(run [_ s] 
+  (if (string? s) 
+    (help/abbreviations regex s)
+    (map #(help/abbreviations regex %) s)))
 (link [this pos other] 
  (help/linkage this pos other))
 clojure.lang.IFn  ;;can act as an fn
