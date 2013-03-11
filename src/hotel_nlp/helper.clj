@@ -420,3 +420,28 @@ ordering."
       (~close-fn ~x))))))     
   
      
+(defn- split-potential-abbreviation [potential]
+ (let [sp-split (clojure.string/split potential #"\s" )
+       par-split (clojure.string/split potential #"\(")]
+  (if (< 1 (count sp-split)) sp-split ;there was a space - easy case
+   [(first par-split) ;there was no space
+    (str \( (second par-split))]))) ;;re-append the openning paren we lost from splitting
+    
+(definline ^:private char-present? [ch s]
+ `(re-find (re-pattern (str "(?i)" ~ch)) ~s))
+
+(defn abbreviations 
+"Extracts abbreviations from a given string s, using 2 simple empirical rules:
+ Abbreviations appear right next to the proper name  at least once (typically the first time). 
+ In addition, on such occassions, they are almost always contained in parentheses (e.g. \"New-York (NY)\"),
+ and the abbreviation itself only contains characters that are present in the proper name (ignoring case)." 
+[abbr-regex s]
+ (let [potentials   (re-seq abbr-regex s)
+       name-abbr-map (into {} (map split-potential-abbreviation potentials))] ;all the potentials
+(reduce-kv 
+(fn [m n a] 
+  (if (every? #(char-present? % n) ;;ABBREVIATION CHARACTERS MUST ALL APPEAR IN THE NAME TO BE CONSIDERED VALID
+      (->> a (drop 1) drop-last)) 
+      (assoc m n a)
+   m))
+{} name-abbr-map)))    
