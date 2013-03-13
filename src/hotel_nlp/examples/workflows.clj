@@ -8,6 +8,8 @@
               [hotel_nlp.core :refer [defcomponent defworkflow fn->component]]
               [clojure.pprint :refer [pprint print-table]]
               [clojure.java.io :as io]
+              [opennlp.tools.filters :as fi]
+              [opennlp.treebank :as trb]
    )
    (:import [hotel_nlp.concretions.models Workflow HMM-POS-tagger])
 )
