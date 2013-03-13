@@ -431,10 +431,11 @@ ordering."
  `(re-find (re-pattern (str "(?i)" ~ch)) ~s))
 
 (defn abbreviations 
-"Extracts abbreviations from a given string s, using 2 simple empirical rules:
+"Extracts abbreviations from a given string s, using 3 simple but empirically sound rules:
  Abbreviations appear right next to the proper name  at least once (typically the first time). 
  In addition, on such occassions, they are almost always contained in parentheses (e.g. \"New-York (NY)\"),
- and the abbreviation itself only contains characters that are present in the proper name (ignoring case)." 
+ and the abbreviation itself only contains characters that are present in the proper name (ignoring case).
+ Finally, abbreviations cintain at least 2 characters (this has to be encoded in the regex, see 'hotel_nlp.concretions.regexes/abbreviation-regex)." 
 [abbr-regex s]
  (let [potentials   (re-seq abbr-regex s)
        name-abbr-map (into {} (map split-potential-abbreviation potentials))] ;all the potentials
