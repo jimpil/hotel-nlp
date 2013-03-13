@@ -42,8 +42,9 @@
   (doseq [p topParses] (.show ^opennlp.tools.parser.Parse p)) 
 (.show ^opennlp.tools.parser.Parse topParses))) 
 
-(defn chunk->spans [^opennlp.tools.chunker.Chunker chunker ^"[Ljava.lang.String;" tokens ^"[Ljava.lang.String;" tags]
-(.chunkAsSpans chunker tokens tags))
+(defn chunk->spans [^opennlp.tools.chunker.Chunker chunker  tokens tags]
+(.chunkAsSpans chunker (if (help/string-array? tokens) tokens (into-array ^String tokens)) 
+                       (if (help/string-array? tokens) tags   (into-array ^String tags))))
 
 
 (defn- extend-opennlp-ner 
@@ -78,8 +79,8 @@ IComponent
 ([this token-seq] 
   (run this token-seq nil))
 ([this token-seq context]
- (if (help/two-d? token-seq) (map #(.tag this (if (help/string-array? %) % (into-array %)) context) token-seq)
-  (.tag this (if (help/string-array? token-seq) token-seq (into-array token-seq)) context))))
+ (if (help/two-d? token-seq) (map #(.tag this (if (help/string-array? %) % (into-array ^String %)) context) token-seq)
+  (.tag this (if (help/string-array? token-seq) token-seq (into-array ^String token-seq)) context))))
 (link [this pos other] 
   (help/linkage this pos other)) ) )  
   
