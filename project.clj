@@ -10,11 +10,12 @@
  		 ;[weissjeffm/clojure.prxml "1.3.0-SNAPSHOT"]
                  ;[org.clojure/tools.cli "0.2.2"]
                  ;[org.apache.opennlp/opennlp-tools "1.5.2-incubating"]
-                 [pt.ua.tm/gimli "1.0.1"] ;;fetch from the specified repository above
+                 [pt.ua.tm/gimli "1.0.1" :exclusions [[opennlp/tools]]] ;;fetch from the specified repository above and exclude old opennlp version
                  [edu.stanford.nlp/stanford-corenlp "1.3.4"]
                  [edu.stanford.nlp/stanford-corenlp-models "1.3.4-models"]
                  [org.apache.opennlp/opennlp-maxent "3.0.3-SNAPSHOT"]
                  [experiment/experiment "1.5.3"] ;OPENNLP HACKED
+                 [clojure-opennlp "0.2.0" :exclusions [[org.apache.opennlp/opennlp-tools]]]
                  [net.sf.jwordnet/jwnl "1.4_rc3"] ;latest
                  [uk.ac.gate/gate-core "7.1"]
                  [org.apache.lucene/lucene-snowball "3.0.3"]
