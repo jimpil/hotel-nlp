@@ -1,12 +1,6 @@
 (ns hotel_nlp.concretions.regexes
     #_(:require [hotel_nlp.protocols :as pro]
                 [hotel_nlp.helper :as help])
-
-
-
-
-
-
 )
 
 
