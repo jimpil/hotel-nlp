@@ -1,7 +1,8 @@
 (ns hotel_nlp.algorithms.viterbi
-  (:use [clojure.pprint :only [pprint]]
-        [hotel_nlp.algorithms.ngrams :refer [ngrams*]]
-        [hotel_nlp.helper   :only [read-resource]]))
+  (:require [clojure.pprint :refer [pprint]]
+            ;[clojure.contrib.probabilities.finite-distributions :refer [normalize]]
+            [hotel_nlp.algorithms.ngrams :refer [ngrams*]]
+            [hotel_nlp.helper   :refer [read-resource]]))
  
 (defrecord HMM ;;example
 [states observations init-probs emission-probs state-transitions]
@@ -16,14 +17,14 @@
 (defrecord TokenTagPair [token tag])        
  
 (defn make-hmm 
-([states obs init-probs emission-probs state-transitions]
+([states obs init-probs emission-probs state-transitions & {:keys [unigram-ps bigrams-ps trigrams-ps]}]
   (HMM.
     (if (vector? states) states (vec states))
     (if (vector? obs)     obs (vec obs)) init-probs emission-probs state-transitions
     ;(if (map? init-probs) init-probs (hash-map init-probs))
     ;(if (map? emission-probs) emission-probs (hash-map emission-probs))
     ;(if (map? state-transitions) state-transitions (hash-map state-transitions))
-    ))
+  {:uni-probs unigram-ps :bi-probs bigrams-ps :tri-probs trigrams-ps} nil))
 ([states init-probs emission-probs state-transitions] 
   (make-hmm states nil init-probs emission-probs state-transitions)))
     
@@ -33,26 +34,26 @@
   (mapv #(let [[token tag] (clojure.string/split % tt-pair)] (TokenTagPair. token tag)))))    
     
     
-(defn tables [^String corpus & {:keys [pair-sep tt-pair] 
-                                 :or {pair-sep #"\s" tt-pair #"/"}}]     
+(defn tables [^String corpus & {:keys [pair-sep tt-pair n] 
+                                 :or {pair-sep #"\s" tt-pair #"/" n 2}}]     
 (let [token-tag-pairs (remove (comp nil? :tag) (extract-pairs corpus :pair-sep pair-sep :tt-pair tt-pair))
       tags    (mapv :tag token-tag-pairs)
-      bigrams (ngrams* tags 2)
-      bigram-frequencies (frequencies bigrams)
+      ngrams (ngrams* tags n)  ;;trigrams  (ngrams* tags 3)
+      ngram-frequencies (frequencies ngrams)
       tag-groups      (group-by :tag token-tag-pairs)
       ;token-groups (group-by :token token-tag-pairs)
       tags-per-token   (persistent!
                        (->> tag-groups
                         (reduce-kv #(assoc! %1 %2 (with-meta %3 (group-by :token %3))) (transient {})))) ;;YES!!!!
       init-map (zipmap (keys tag-groups) (repeat (zipmap (keys tag-groups) (repeat 0))))
-      tra-table (reduce-kv #(update-in % [(first %2) (second %2)] + %3 (get-in % [(first %2) (second %2)])) init-map bigram-frequencies)
+      tra-table (reduce-kv #(update-in % [(first %2) (second %2)] + %3 (get-in % [(first %2) (second %2)])) init-map ngram-frequencies)
       
       tag-frequency  (frequencies tags)] ;;emm2
 [tags-per-token tag-frequency (count token-tag-pairs) tra-table (set tags)] ))
 ;;all we need is here (emmissions, starts, token-count, transitions, unique tags )        
        
    
-(defn proper-statistics [[ems starts all tra-table uniq-tags :as em-tables] ]
+(defn proper-statistics [[ems starts all tra-table uniq-tags :as em-tables]]
 (let [em-probs  (reduce-kv 
                  (fn [s k v] 
                    (assoc s k 
@@ -64,7 +65,61 @@
                    (assoc s k 
                     (reduce-kv #(assoc % %2 (/ %3 (get starts %2))) {} v)))
                   {} tra-table)]
- [uniq-tags start-probs em-probs trans-probs]))   
+ [uniq-tags start-probs em-probs trans-probs]))
+ 
+ (defn- scale-by ;;from contrib
+  "Multiply each entry in dist by the scale factor s and remove zero entries."
+  [dist s]
+  (into {}
+	(for [[val p] dist :when (> p 0)]
+	  [val (* p s)])))
+	  
+(defn normalize ;from contrib
+  "Convert a weight map (e.g. a map of counter values) to a distribution
+   by multiplying with a normalization factor. If the map has a key
+   :total, its value is assumed to be the sum over all the other values and
+   it is used for normalization. Otherwise, the sum is calculated
+   explicitly. The :total key is removed from the resulting distribution."
+  [weights]
+  (let [total (:total weights)
+	w (dissoc weights :total)
+	s (/ 1 (if (nil? total) (reduce + (vals w)) total))]
+    (scale-by w s)))	  	  
+ 
+(defn deleted-interpolation 
+"The deleted-interpolation algorithm for setting the weights when combining unigram,bigram and trigram probabilities [Brants(2000)]."
+[tokens]
+(let [l1 (atom 0) l2 (atom 0)  l3 (atom 0) t-count (count tokens)
+      unigrams (ngrams* tokens 1)
+      unigram-freqs  (frequencies unigrams)
+      bigrams  (ngrams* tokens 2)
+      bigram-freqs  (frequencies bigrams)
+      trigrams (ngrams* tokens 3)
+      trigram-freqs (frequencies trigrams)
+      tri-f (fn [trigram] (try  (/ (dec (get trigram-freqs trigram))
+                                   (dec (get bigram-freqs (drop-last trigram))))
+                          (catch ArithmeticException ae 0)))
+      bi-f  (fn [trigram] (try  (/ (dec (get bigram-freqs  (drop 1 trigram)))
+                                   (dec (get unigram-freqs (list (nth trigram 1)))))
+                          (catch ArithmeticException ae 0)))
+      un-f  (fn [trigram] (try  (/ (dec (get unigram-freqs (drop 2 trigram)))
+                                   (dec t-count))
+                          (catch ArithmeticException ae 0)))]                                                                   
+(doseq [trgm trigrams]
+  (let [res (apply max-key second 
+               {:t (tri-f trgm)
+     		:b (bi-f  trgm) 
+                :u (un-f   trgm)})]
+  (condp = (first res)
+        :u  (swap! l1 + (get trigram-freqs trgm))
+        :b  (swap! l2 + (get trigram-freqs trgm))
+        :t  (swap! l3 + (get trigram-freqs trgm))))) 
+(normalize {:l1 @l1 :l2 @l2 :l3 @l3}))) 
+
+(defn weighted-sum [[[u-probs w1] [b-probs w2] [t-probs w3]]]
+  (+ (* w3 t-probs)
+     (* w2 b-probs))
+     (* w1 u-probs))
          
  
 (defn argmax [coll]
@@ -90,7 +145,7 @@
                        (get-in (:state-transitions hmm) [state2 state1] 0))))
                     0
                     (:states hmm))
-            (get-in (:emission-probs hmm) [state1 obs] 0))) (:states hmm)))
+            (get-in (:emission-probs hmm) [state1 obs] 0))) (:states hmm)))  
  
 (defn delta-max [hmm deltas obs]
  (mapv (fn [state1]
@@ -128,7 +183,7 @@
          deltas alphas
          paths []]
     (if (empty? obs)
-      [(paths->states (backtrack paths deltas) (:states hmm)) (float (reduce + alphas))]
+      [(paths->states (backtrack paths deltas) (:states hmm)) (float (apply + alphas))]
       (recur (next obs)
              (forward hmm alphas (first obs))  
              (delta-max hmm deltas (first obs))
@@ -205,7 +260,7 @@
 ;;EXAMPLE 4 -- with automatic extraction of probabilities from a given corpus
 ;(def a-corpus (slurp "formitsos_line.txt")) 
 ;;OR normally-> (slurp "formitsos_line.txt")
-(def probs (read-resource "corpora-train/BROWN-NLTK/brown-probs.txt"))  ;(proper-statistics (tables a-corpus))
+(def probs (read-resource "corpora-train/BROWN-NLTK/brown-probs.txt"))  ;(proper-statistics (tables (slurp (resource "corpora-train/BROWN-NLTK/nltk_brown_pos.txt")) :n 3))
 (def hmm (let [{states :states starts :init-probs  emms :emission-probs trans :state-transitions} probs]  
           (make-hmm states starts emms trans)))
 (viterbi hmm ["At" "least" "4" "people" "were" "killed" "as" "a" "tsunami" "hit" "the" "Japanese" "island"  "."])
