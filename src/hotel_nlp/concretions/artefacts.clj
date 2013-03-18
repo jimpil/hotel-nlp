@@ -23,6 +23,6 @@
 (def mr-mapper (MapReduceMapper. 100))
 (def brown-nltk-pos-probs (help/read-resource "corpora-train/BROWN-NLTK/brown-probs.txt"))
 (def pannotator-pluggable-sent-splitter  (Workflow. [reg-seg stick]))
-(def abbreviation-extractor (RE-Abbrv. re/abbreviation-regex :string :map))
+(def abbreviation-extractor (RE-Abbrv. [re/re-abbreviation-paren re/re-term-paren] :string :map))
 
 
