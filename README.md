@@ -24,6 +24,7 @@ FIXME
 
 ## License
 
-Copyright © 2013 FIXME
+Copyright © 2013
 
 Distributed under the Eclipse Public License, the same as Clojure.
+Note: the used implementation of the Snowball stemming algorithm is licensed under the BSD license.
