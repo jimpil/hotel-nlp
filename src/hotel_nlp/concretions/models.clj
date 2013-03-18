@@ -171,14 +171,14 @@ clojure.lang.IFn  ;;can act as an fn
   (applyTo [this args]
     (apply run this args)) )
 
-(defrecord RE-Abbrv [regex input output]
+(defrecord RE-Abbrv [regexes input output]
 IComponent
 (getIOTypes [_] {:input  input 
                  :output output})  
-(run [_ s] 
+(run [this s] 
   (if (string? s) 
-    (help/abbreviations regex s)
-    (map #(help/abbreviations regex %) s)))
+    (apply help/abbreviations-simple s regexes)
+    (map #(run this %) s)))
 (link [this pos other] 
  (help/linkage this pos other))
 clojure.lang.IFn  ;;can act as an fn
