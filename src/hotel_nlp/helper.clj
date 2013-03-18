@@ -27,6 +27,10 @@
  [nspace]
  `(for [[_# v#] (ns-map ~nspace) :when (:test (meta v#))] v#))
 
+(defmacro in?
+  "Returns the value of x if coll contains it, otherwise nil."
+  [coll x] 
+ `(some #{~x} ~coll))
 
 (defmacro linkage [obj pos other]
 `(hotel_nlp.concretions.models.Workflow. (hotel_nlp.helper/link ~obj ~pos ~other)))  
@@ -418,31 +422,56 @@ ordering."
           `(do ~@body))
     (finally
       (~close-fn ~x))))))     
-  
-     
-(defn- split-potential-abbreviation [potential]
- (let [sp-split (clojure.string/split potential #"\s" )
-       par-split (clojure.string/split potential #"\(")]
-  (if (< 1 (count sp-split)) sp-split ;there was a space - easy case
-   [(first par-split) ;there was no space
-    (str \( (second par-split))]))) ;;re-append the openning paren we lost from splitting
-    
-(definline ^:private char-present? [ch s]
- `(re-find (re-pattern (str "(?i)" ~ch)) ~s))
+   
 
-(defn abbreviations 
-"Extracts abbreviations from a given string s, using 3 simple but empirically sound rules:
- Abbreviations appear right next to the proper name  at least once (typically the first time). 
- In addition, on such occassions, they are almost always contained in parentheses (e.g. \"New-York (NY)\"),
+(defn abbreviations-simple 
+"Extracts singleton (continuous string) abbreviations from a given string s, using 3 simple but empirically sound rules:
+ Abbreviations appear right next to the proper name (right or left) at least once (typically the first time). 
+ In addition, on such occassions, they are almost always contained in parentheses (e.g. \"New-York (NY)\" or \"NY (New-York)\"),
  and the abbreviation itself only contains characters that are present in the proper name (ignoring case).
- Finally, abbreviations cintain at least 2 characters (this has to be encoded in the regex, see 'hotel_nlp.concretions.regexes/abbreviation-regex)." 
-[abbr-regex s]
- (let [potentials   (re-seq abbr-regex s)
-       name-abbr-map (into {} (map split-potential-abbreviation potentials))] ;all the potentials
+ Finally, abbreviations contain at least 2 characters (this has to be encoded in the regex, see 'hotel_nlp.concretions.regexes/re-abbreviation-paren)." 
+[s & abbr-regexes]
+ (let [potentials  (apply concat (for [r abbr-regexes] (re-seq r s)))
+       name-abbr-map (into {} (map (comp vec rest) potentials))   ;;first match is the entire expression (ignore it)
+       char-present? (fn [ch s] (re-find (re-pattern (str "(?i)" ch)) (str s)))] 
 (reduce-kv 
-(fn [m n a] 
-  (if (every? #(char-present? % n) ;;ABBREVIATION CHARACTERS MUST ALL APPEAR IN THE NAME TO BE CONSIDERED VALID
-      (->> a (drop 1) drop-last)) 
-      (assoc m n a)
-   m))
-{} name-abbr-map)))    
+(fn [m n a]
+(let [unparen (->> a (drop 1) drop-last)] 
+  (cond 
+     (every? #(char-present? % n) unparen)  (assoc m n a)  ;;ABBREVIATION CHARACTERS MUST ALL APPEAR IN THE NAME TO BE CONSIDERED VALID
+     (every? #(char-present? % unparen) n)  (assoc m n a)
+   :else m)))
+{} name-abbr-map)))
+
+(defn abbreviations-advanced [s chunk-fn NP-extractor]
+ (let [;chunker  (hotel_nlp.core/fn->component chunk-fn)
+      chunks (chunk-fn s)
+      noun-phrases (NP-extractor chunks)
+      with-parens (filter #(some #{"(" ")"} %) noun-phrases)
+      remaining (map (fn [xs] 
+                      (remove #(or (some #{"the"} %) 
+                                  (some #{"a"} %) 
+                                  (some #{"and"} %)
+                                  (some #{"this"} %)
+                                  (some #{"that"} %)) xs)) with-parens)]
+      remaining))
+
+;;EXAMPLE FOLLOWS FOR OPENNLP-java
+#_(fn [sentence] ;;the chunk-fn
+   (let [tokens   (.tokenize bin/opennlp-simple-tok sentence) ;;example tokenizer  
+         pos-tags (.tag (bin/opennlp-me-pos) tokens) ] 
+      (bin/chunk->spans (bin/opennlp-me-chunk) tokens pos-tags)))
+
+#_(fn [chunk-spans] ;;the noun-phrase extractor
+  (filter #(= "NP" (.getType %)) chunk-spans))
+
+;;example for opennlp-clojure
+#_(fn [s]
+((opennlp.treebank/make-treebank-chunker "resources/pretrained_models/opennlp/en-chunker.bin") 
+ ((opennlp.nlp/make-pos-tagger "resources/pretrained_models/opennlp/en-pos-maxent.bin") 
+  (seq (run bin/opennlp-simple-tok s)))))
+
+#_(fn [chunks] 
+  (opennlp.treebank/phrases
+  (opennlp.tools.filters/noun-phrases chunks)))
+  
