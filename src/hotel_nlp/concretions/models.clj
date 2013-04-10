@@ -263,11 +263,13 @@ IExecutable
 
 ;;provide extracted probabilities in meta-data key :probs
 (defrecord HMM-POS-tagger [prob-extractor ;(comp vit/proper-statistics vit/tables) - a fn which will return a seq containing '(:states :inits :emmission :transition)
-                          algo]           ; vit/viterbi 
+                           algo]           ; vit/viterbi 
 IProbabilistic
 (observe [_ tagged-corpus] 
- (let [[states starts emms trans] (prob-extractor tagged-corpus)]   ;; we got corpus - need to extract probabilities
-  (vit/make-hmm states starts emms trans))) ;;returns a map/record of probabilities (the actual model)
+ (let [;wmap  (vit/smoothing-weights tokens) ;;got smoothing weights
+       ;{:keys [weights uni-probs bi-probs tri-probs]} wmap
+       [states starts emms trans smoothing] (prob-extractor tagged-corpus)]   ;; we got corpus - need to extract probabilities
+   (vit/make-hmm states starts emms trans) )) ;;returns a map/record of probabilities (the actual model)
 (observe [this tagged-corpus probs]  
  (if (and (nil? tagged-corpus) ;pass nil to start from scratch
           (not (nil? probs))) ;;if we don't have corpus, we must have probabilities
@@ -276,7 +278,7 @@ IProbabilistic
          emms    :emission-probs
          trans   :state-transitions} probs]    ;; we got probabilities, not corpus - no need to extract anything
      (vit/make-hmm states starts emms trans))  ;;we got an actual corpus   
- (help/deep-merge-with #(if (vector? %) % (+ % %2)) probs (observe this tagged-corpus)))) ;TODO  ;;cannot add new states at the moment, only update probabilities
+ (help/deep-merge-with #(if (set? %) (conj % %2) (+ % %2)) probs (observe this tagged-corpus)))) ;CAUTION: if updating states make sure the tag-sets are the same between corpora
 IModel                                        
  (predict [this probs tokens]
   (if (help/two-d? tokens)  
