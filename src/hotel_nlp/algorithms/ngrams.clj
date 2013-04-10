@@ -4,10 +4,8 @@
 (defn ngrams*
  "Create ngrams from a seq s. 
   Pass a single string for character n-grams or a seq of strings for word n-grams."
-  [s n]
-  (when (>= (count s) n)
-    (lazy-seq 
-      (cons (take n s) (ngrams* (next s) n))))) 
+  [s n] 
+   (partition n 1 s))
       
       
 (defn n-grams-count
