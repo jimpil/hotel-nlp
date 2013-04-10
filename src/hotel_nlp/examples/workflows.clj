@@ -8,6 +8,7 @@
               [hotel_nlp.core :refer [defcomponent defworkflow fn->component]]
               [clojure.pprint :refer [pprint print-table]]
               [clojure.java.io :as io]
+              [opennlp.nlp :as clp]
               [opennlp.tools.filters :as fi]
               [opennlp.treebank :as trb]
    )
@@ -48,6 +49,7 @@
 (defcomponent opennlp-coref "openNLP's coreference linker" (bin/opennlp-me-coref)) 
 (defcomponent my-ssplit "my own sentence-splitter" reg-seg)
 (defcomponent my-tokenizer "my own sentence-splitter" reg-tok)
+(defcomponent my-abbr-extractor "my own abbreviation extractor" abbreviation-extractor) ;;supports both modes (abbreviation in paren & name in paren)
 (defcomponent porter-stemmer "my own sentence-splitter" stemmer)
 (defcomponent my-pos-tagger "my own HMM pos-tagger based on bigrams." 
   (HMM-POS-tagger. (comp vit/proper-statistics vit/tables) vit/viterbi {:probs brown-nltk-pos-probs} nil)) ;;pass the pre-observed probabilities as meta-data
@@ -102,8 +104,8 @@
 (defworkflow mixed-pipe3 "another pipe with mixed components-SUCC" 
  my-ssplit
  (fn->component (fn [sentences] (run stanford-tok 
-                                          (doto (edu.stanford.nlp.pipeline.Annotation. (apply str sentences)) 
-                                            (.set edu.stanford.nlp.ling.CoreAnnotations$SentencesAnnotation sentences))))) 
+                  (doto (edu.stanford.nlp.pipeline.Annotation. (apply str sentences)) 
+                        (.set edu.stanford.nlp.ling.CoreAnnotations$SentencesAnnotation sentences))))) 
  (fn->component (fn [ann] (run opennlp-pos (-> ann bin/squeeze-annotation :tokens))))  )
 
 
