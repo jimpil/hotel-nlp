@@ -156,7 +156,7 @@ only when there's a non-map at a particular level.
 (case lang
 	"danish"    (DanishStemmer.)  "dutch"   (DutchStemmer.)   "english"   (EnglishStemmer.) "finnish"   (FinnishStemmer.) 
 	"french"    (FrenchStemmer.)  "german2" (German2Stemmer.) "german"    (GermanStemmer.)  "hungarian" (HungarianStemmer.)
-        "italian"   (ItalianStemmer.) "kp"      (KpStemmer.)      "lovins"    (LovinsStemmer.)  "norwegian" (NorwegianStemmer.) 
+  "italian"   (ItalianStemmer.) "kp"      (KpStemmer.)      "lovins"    (LovinsStemmer.)  "norwegian" (NorwegianStemmer.) 
 	"porter"    (PorterStemmer.)  "postugese" (PortugueseStemmer.) "romanian"  (RomanianStemmer.) "russian" (RussianStemmer.) 
 	"spanish"   (SpanishStemmer.) "swedish"   (SwedishStemmer.)    "turskish"  (TurkishStemmer.)
  (throw 
@@ -421,7 +421,40 @@ ordering."
           `(with-resources ~more ~close-fn ~@body)
           `(do ~@body))
     (finally
-      (~close-fn ~x))))))     
+      (~close-fn ~x)))))) 
+
+(defn map-difference 
+  "Comapres the 2 given maps and returns a map of their difference." 
+  [m1 m2]
+  (let [ks1 (set (keys m1))
+        ks2 (set (keys m2))
+        ks1-ks2 (sets/difference ks1 ks2)
+        ks2-ks1 (sets/difference ks2 ks1)
+        ks1*ks2 (sets/intersection ks1 ks2)]
+    (merge (select-keys m1 ks1-ks2)
+           (select-keys m2 ks2-ks1)
+           (select-keys m1
+                        (remove (fn [k] (= (m1 k) (m2 k)))
+                                ks1*ks2)))))
+
+(defmacro let-timed "Just like 'let' but each binding expression will be timed."
+  [bindings & body]
+  (let [parts   (partition 2 bindings) 
+        names   (map first parts) 
+        results (map #(list 'clojure.core/time (second %)) parts)]
+    `(let ~(vec (interleave names results))
+       ~@body)))
+
+
+(definline third [coll]
+   `(-> ~coll next second)) 
+
+ (definline fourth [coll]
+   `(-> ~coll next next second))  
+
+(defmacro do-print [form]
+  `(let [res# ~form]
+     (println res#) res#))                                                    
    
 
 (defn abbreviations-simple 
