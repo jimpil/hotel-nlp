@@ -6,9 +6,9 @@
   :repositories [["bioinformatics-all" "http://bioinformatics.ua.pt/maven/content/groups/public"]]          
   :dependencies [[org.clojure/clojure "1.5.1"]
                  ;[org.clojure/clojure-contrib "1.2.0"]
- 		 [org.clojure/data.zip "0.1.1"]
- 		 [org.clojure/tools.nrepl "0.2.2"]
- 		 ;[weissjeffm/clojure.prxml "1.3.0-SNAPSHOT"]
+ 		             [org.clojure/data.zip "0.1.1"]
+ 		             [org.clojure/tools.nrepl "0.2.2"]
+ 		             ;[weissjeffm/clojure.prxml "1.3.0-SNAPSHOT"]
                  ;[org.clojure/tools.cli "0.2.2"]
                  ;[org.apache.opennlp/opennlp-tools "1.5.2-incubating"]
                  [pt.ua.tm/gimli "1.0.1" :exclusions [[opennlp/tools]]] ;;fetch from the specified repository above and exclude old opennlp version
@@ -17,10 +17,15 @@
                  [org.apache.opennlp/opennlp-maxent "3.0.3-SNAPSHOT"]
                  [experiment/experiment "1.5.3"] ;OPENNLP HACKED
                  [clojure-opennlp "0.2.0" :exclusions [[org.apache.opennlp/opennlp-tools]]]
-                 [net.sf.jwordnet/jwnl "1.4_rc3"] ;latest
+                 [net.sf.jwordnet/jwnl "1.4_rc3"] ;latest wordnet
                  [uk.ac.gate/gate-core "7.1"]
                  [org.apache.lucene/lucene-snowball "3.0.3"]
                  [org.apache.pdfbox/pdfbox "1.7.1"]
+                 [org.apache.uima/uimaj-core "2.4.0"]
+                 ;[org.apache.uima/uimaj-examples "2.4.0"]
+                 ;[org.apache.uima/Tagger "2.3.1"]
+                 [org.uimafit/uimafit "1.4.0"] ;;stay away from xml descriptors
+                 [print-foo "0.3.2"]
                  ]
   :jvm-opts ["-Xmx2g" "-server"  ;;ideally need 3GB for stanford-corenlp
              "-XX:+OptimizeStringConcat" 
@@ -31,7 +36,7 @@
   ;:jar-name           ; name of the jar produced by 'lein jar'
   ;:uberjar-name "hotel-nlp.jar" ; same for 'lein uberjar'
   :resource-paths ["resources" "~/gate-7.1-build4485-ALL/lib/*.jar" "~/GIMLI/resources" ]  
-  ;:java-source-paths ["src/java"]
+  :java-source-paths ["src/java"]
   ;:aot []
   ;:warn-on-reflection true
   ;:main cluja.app.core
