@@ -17,6 +17,12 @@
   )
 )
 
+(def ^:dynamic *type-system* (TypeSystemDescriptionFactory/createTypeSystemDescription))
+;(ResourceManager/setExtensionClassPath (. (Thread/currentThread) getContextClassLoader) "" true)
+
+
+(org.apache.uima.resource.impl.ResourceManager_impl. (. (Thread/currentThread) getContextClassLoader))
+
 (defn alt-implementation 
  "Specify an uima implementation other than the default one.
  If you choose to do this, make sure to call this fn before doing anything else." 
@@ -33,13 +39,18 @@
   (^ResourceManager [] (UIMAFramework/newDefaultResourceManager))
   ([^String data-path] (doto (resource-manager) (.setDataPath data-path))))
 
-(defn ^ResourceSpecifier xml-resource 
+(defn resource-manager-exp [context-map]
+  (doto (org.uimafit.util.SimpleNamedResourceManager.) 
+     (.setAutoWireEnabled true)
+     (.setExternalContext context-map)))
+
+(defn  xml-resource ^ResourceSpecifier 
 "Parses an xml-descriptor file and returns the ResourceSpecifier object."
  [^String xml-descriptor]
   (let [source (XMLInputSource. xml-descriptor)]
 	(.parseResourceSpecifier (xml-parser) source)))
 
-(defn ^JCas jcas 
+(defn jcas ^JCas  
 "Create a JCas, given an Analysis Engine (ae)." 
 [^AnalysisEngine ae] 
  (.newJCas ae))
@@ -76,7 +87,7 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
 
 (defn produce ;(produce :analysis-engine [(xml-resource "dummy-descriptor.xml")] :par-requests 3)
- "Produce UIMA components according to some ResourceSpecifier objects (which you get from 'xml-resource')."
+ "Produce UIMA components according to some ResourceSpecifier objects (which you get from calling (xml-resource some.xml)."
 [what specifiers & {:keys [par-requests timeout] :or {timeout 0}}] ;wait forever by default
 (for [^ResourceSpecifier sp specifiers] 
 (case what
@@ -93,10 +104,8 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
 (defn ufit-produce
 "Produce UIMA components from your objects without writing any XML descriptors, via uima-fit."
- [& objects]
- (let [type-system (TypeSystemDescriptionFactory/createTypeSystemDescription)
-       jcas (org.uimafit.factory.JCasFactory/createJCas type-system)]
-   (map #(AnalysisEngineFactory/createPrimitiveDescription (class %) type-system) objects)))
+ [& os]
+   (map #(AnalysisEngineFactory/createPrimitive (class %) *type-system* (to-array [])) os))
 
 #_(defn ufit-pipeline [jcas annotators]
   (SimplePipeline/runPipeline jcas (into-array AnalysisEngine annotators))
@@ -107,8 +116,34 @@ This fn should accept a jcas and should be able to pull the processed data out o
        x (JCasUtil/select jcas c)]
     x))
 
-(defn middle-man [actor tagger input-extractor]
+(defn uima-compatible [component jcas-input-extractor]
  (proxy [org.uimafit.component.JCasAnnotator_ImplBase][]
    (process [^JCas jc] 
-    (let [xs (input-extractor jc)] 
-      (actor xs))))) ;;assuming actor is a fn for now
+    (let [xs (jcas-input-extractor jc)] 
+      (component xs))))) ;;assuming component is a fn for now
+
+#_(-> art/reg-tok 
+   (uima-compatible  squeeze-jcas)
+    ufit-produce)
+
+(comment
+
+hotel_nlp.externals.uima=> (. (ClassLoader/getSystemClassLoader) loadClass "hotel_nlp.externals.uima.proxy$org.uimafit.component.JCasAnnotator_ImplBase$0")
+ClassNotFoundException hotel_nlp.externals.uima.proxy$org.uimafit.component.JCasAnnotator_ImplBase$0  
+java.net.URLClassLoader$1.run (URLClassLoader.java:366)
+
+hotel_nlp.externals.uima=> (Class/forName "hotel_nlp.externals.uima.proxy$org.uimafit.component.JCasAnnotator_ImplBase$0" false (ClassLoader/getSystemClassLoader))
+ClassNotFoundException hotel_nlp.externals.uima.proxy$org.uimafit.component.JCasAnnotator_ImplBase$0  java.net.URLClassLoader$1.run (URLClassLoader.java:366)
+
+hotel_nlp.externals.uima=> (Class/forName "hotel_nlp.externals.uima.proxy$org.uimafit.component.JCasAnnotator_ImplBase$0")
+hotel_nlp.externals.uima.proxy$org.uimafit.component.JCasAnnotator_ImplBase$0 
+
+(gen-class
+  :name   hotel_nlp.externals.UIMAFriendly
+  :preﬁx TEMP-
+  :extends org.uimafit.component.JCasAnnotator_ImplBase)
+  :methods [[process [] void] ]
+
+)
+
+(defn )
