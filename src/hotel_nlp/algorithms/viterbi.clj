@@ -1,5 +1,4 @@
 (ns hotel_nlp.algorithms.viterbi
-  (:use print.foo)
   (:require [clojure.pprint :refer [pprint]]
             ;[clojure.contrib.probabilities.finite-distributions :refer [normalize]]
             [hotel_nlp.algorithms.ngrams :refer [ngrams*]]
