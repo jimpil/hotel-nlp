@@ -19,6 +19,7 @@
 
 (def ^:dynamic *type-system* (TypeSystemDescriptionFactory/createTypeSystemDescription))
 ;(ResourceManager/setExtensionClassPath (. (Thread/currentThread) getContextClassLoader) "" true)
+(def dynamic-classloader (. (Thread/currentThread) getContextClassLoader))
 
 
 (org.apache.uima.resource.impl.ResourceManager_impl. (. (Thread/currentThread) getContextClassLoader))
@@ -35,22 +36,28 @@
 (definline logger "Get the current logger." []
  `(UIMAFramework/getLogger))
 
-(defn resource-manager 
-  (^ResourceManager [] (UIMAFramework/newDefaultResourceManager))
-  ([^String data-path] (doto (resource-manager) (.setDataPath data-path))))
+(defn ^ResourceManager resource-manager 
+  ([] (UIMAFramework/newDefaultResourceManager))
+  ([^String data-path] (doto (resource-manager) (.setDataPath data-path)))
+  ([^String data-path parent-loader] (doto (resource-manager data-path ) (.setExtensionClassPath parent-loader "" true))))
 
-(defn resource-manager-exp [context-map]
+(defn resource-manager-exp 
+"UIMA does not support injections of pre-existing object instances unless they have been created within the context of UIMA (Clojure records aren't for example).
+ One could stat playing with ClassLoaders to essentially inject whatever instances he/she wants but that is tricky and could leave to other runtime problems. 
+ Starting from uimafit 1.4.0 there is some experimental code (an extended ResourceManager) that allows exactly that. This manager can set its externalContext using
+ a Map<String,Object> where we're mapping names object-instances. "
+  [context-map]
   (doto (org.uimafit.util.SimpleNamedResourceManager.) 
      (.setAutoWireEnabled true)
      (.setExternalContext context-map)))
 
-(defn  xml-resource ^ResourceSpecifier 
+(defn ^ResourceSpecifier  xml-resource 
 "Parses an xml-descriptor file and returns the ResourceSpecifier object."
  [^String xml-descriptor]
   (let [source (XMLInputSource. xml-descriptor)]
 	(.parseResourceSpecifier (xml-parser) source)))
 
-(defn jcas ^JCas  
+(defn ^JCas jcas   
 "Create a JCas, given an Analysis Engine (ae)." 
 [^AnalysisEngine ae] 
  (.newJCas ae))
@@ -86,26 +93,28 @@ This fn should accept a jcas and should be able to pull the processed data out o
     documents)))
 
 
-(defn produce ;(produce :analysis-engine [(xml-resource "dummy-descriptor.xml")] :par-requests 3)
- "Produce UIMA components according to some ResourceSpecifier objects (which you get from calling (xml-resource some.xml)."
-[what specifiers & {:keys [par-requests timeout] :or {timeout 0}}] ;wait forever by default
-(for [^ResourceSpecifier sp specifiers] 
-(case what
-	:analysis-engine (if par-requests (UIMAFramework/produceAnalysisEngine sp par-requests timeout)
-		                              (UIMAFramework/produceAnalysisEngine sp))
-	:cas-consumer    (if par-requests (UIMAFramework/produceCasConsumer sp par-requests timeout)
-		                              (UIMAFramework/produceCasConsumer sp))
-	:cas-initializer (if par-requests (UIMAFramework/produceCasInitializer sp par-requests timeout)
-									  (UIMAFramework/produceCasInitializer sp))
-	:collection-processing-engine (if par-requests (UIMAFramework/produceCollectionProcessingEngine sp par-requests timeout)
-		 						                   (UIMAFramework/produceCollectionProcessingEngine sp))
-	:collection-reader (if par-requests (UIMAFramework/produceCollectionReader sp par-requests timeout) 
-		 								(UIMAFramework/produceCollectionReader sp)))) )
-
-(defn ufit-produce
+(defn produce-primitive
 "Produce UIMA components from your objects without writing any XML descriptors, via uima-fit."
  [& os]
    (map #(AnalysisEngineFactory/createPrimitive (class %) *type-system* (to-array [])) os))
+
+
+(defn produce ;(produce :analysis-engine [(xml-resource "dummy-descriptor.xml")] :par-requests 3)
+ "Produce UIMA components according to some ResourceSpecifier objects (which you get from calling (xml-resource some.xml)."
+[what specifier & {:keys [resource-manager par-requests timeout] 
+                   :or   {timeout 0 par-requests 1 resource-manager (UIMAFramework/newDefaultResourceManager)}}]
+(let [additional-params {"PARAM_TIMEOUT_PERIOD" timeout 
+                         "PARAM_NUM_SIMULTANEOUS_REQUESTS" par-requests
+                         "PARAM_RESOURCE_MANAGER" resource-manager}]
+(case what
+	:analysis-engine  (UIMAFramework/produceAnalysisEngine specifier additional-params)                           
+	:cas-consumer     (UIMAFramework/produceCasConsumer specifier additional-params)
+	:cas-initializer  (UIMAFramework/produceCasInitializer specifier additional-params)
+	:collection-processing-engine (UIMAFramework/produceCollectionProcessingEngine specifier additional-params)
+	:collection-reader (UIMAFramework/produceCollectionReader specifier additional-params)
+  :primitive-ae (produce-primitive specifier)))) ;;'specifier' here really means 'object-instance' and not xml as we're going through uima-fit
+
+
 
 #_(defn ufit-pipeline [jcas annotators]
   (SimplePipeline/runPipeline jcas (into-array AnalysisEngine annotators))
@@ -122,9 +131,19 @@ This fn should accept a jcas and should be able to pull the processed data out o
     (let [xs (jcas-input-extractor jc)] 
       (component xs))))) ;;assuming component is a fn for now
 
-#_(-> art/reg-tok 
+#_(let [compa  (uima-compatible art/reg-tok  squeeze-jcas)
+      hack   (resource-manager-exp {"pojo" compa})
+      desc   (AnalysisEngineFactory/createPrimitiveDescription (class compa) (to-array []))]
+ (produce :analysis-engine desc :resource-manager hack))
+
+
+#_(produce :analysis-engine 
+  (-> art/reg-tok 
    (uima-compatible  squeeze-jcas)
-    ufit-produce)
+   class
+   (AnalysisEngineFactory/createPrimitiveDescription (to-array [])))
+   :resource-manager rs)
+;(resource-manager-exp {"pojo" art/reg-tok})
 
 (comment
 
@@ -140,10 +159,12 @@ hotel_nlp.externals.uima.proxy$org.uimafit.component.JCasAnnotator_ImplBase$0
 
 (gen-class
   :name   hotel_nlp.externals.UIMAFriendly
-  :preﬁx TEMP-
-  :extends org.uimafit.component.JCasAnnotator_ImplBase)
+  :preﬁx "-"
+  :main false
+  :extends org.uimafit.component.JCasAnnotator_ImplBase
   :methods [[process [] void] ]
-
 )
 
-(defn )
+(defn- -process []
+  ) 
+)
