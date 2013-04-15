@@ -22,7 +22,7 @@
 (def dynamic-classloader (. (Thread/currentThread) getContextClassLoader))
 
 
-(org.apache.uima.resource.impl.ResourceManager_impl. (. (Thread/currentThread) getContextClassLoader))
+;(org.apache.uima.resource.impl.ResourceManager_impl. (. (Thread/currentThread) getContextClassLoader))
 
 (defn alt-implementation 
  "Specify an uima implementation other than the default one.
@@ -102,10 +102,12 @@ This fn should accept a jcas and should be able to pull the processed data out o
 (defn produce ;(produce :analysis-engine [(xml-resource "dummy-descriptor.xml")] :par-requests 3)
  "Produce UIMA components according to some ResourceSpecifier objects (which you get from calling (xml-resource some.xml)."
 [what specifier & {:keys [resource-manager par-requests timeout] 
-                   :or   {timeout 0 par-requests 1 resource-manager (UIMAFramework/newDefaultResourceManager)}}]
-(let [additional-params {"PARAM_TIMEOUT_PERIOD" timeout 
-                         "PARAM_NUM_SIMULTANEOUS_REQUESTS" par-requests
-                         "PARAM_RESOURCE_MANAGER" resource-manager}]
+                   :or   {timeout 0 resource-manager (doto (UIMAFramework/newDefaultResourceManager) 
+                                                        (.setExtensionClassPath dynamic-classloader "" true))}}]
+(let [min-params {"TIMEOUT_PERIOD" (int timeout) 
+                  ;"NUM_SIMULTANEOUS_REQUESTS" (int par-requests)
+                  "RESOURCE_MANAGER" resource-manager}
+      additional-params (if par-requests (assoc min-params "NUM_SIMULTANEOUS_REQUESTS" (int par-requests)) min-params)]
 (case what
 	:analysis-engine  (UIMAFramework/produceAnalysisEngine specifier additional-params)                           
 	:cas-consumer     (UIMAFramework/produceCasConsumer specifier additional-params)
@@ -141,8 +143,7 @@ This fn should accept a jcas and should be able to pull the processed data out o
   (-> art/reg-tok 
    (uima-compatible  squeeze-jcas)
    class
-   (AnalysisEngineFactory/createPrimitiveDescription (to-array [])))
-   :resource-manager rs)
+   (AnalysisEngineFactory/createPrimitiveDescription (to-array []))))
 ;(resource-manager-exp {"pojo" art/reg-tok})
 
 (comment
