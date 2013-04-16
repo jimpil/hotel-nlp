@@ -12,7 +12,7 @@
            [org.uimafit.pipeline SimplePipeline]
            [org.uimafit.util  JCasUtil]
            ;[org.uimafit.type Sentence Token AnalyzedText]
-           [org.uimafit.factory TypeSystemDescriptionFactory AnalysisEngineFactory AggregateBuilder CollectionReaderFactory]
+           [org.uimafit.factory JCasFactory TypeSystemDescriptionFactory AnalysisEngineFactory AggregateBuilder CollectionReaderFactory]
            [hotel_nlp.concretions.models  RE-Tokenizer RE-Segmenter] 
   )
 )
@@ -128,10 +128,12 @@ This fn should accept a jcas and should be able to pull the processed data out o
     x))
 
 (defn uima-compatible [component jcas-input-extractor]
- (proxy [org.uimafit.component.JCasAnnotator_ImplBase][]
-   (process [^JCas jc] 
+ (proxy [org.apache.uima.analysis_component.JCasAnnotator_ImplBase][]  ;org.uimafit.component.JCasAnnotator_ImplBase 
+   (process [^JCas jc]
+    ;(if (instance? org.apache.uima.cas.AbstractCas jc) (proxy-super jc) 
     (let [xs (jcas-input-extractor jc)] 
-      (component xs))))) ;;assuming component is a fn for now
+      (component xs)))
+    (process [^org.apache.uima.cas.AbstractCas abs] (proxy-super abs)))) ;;assuming component is a fn for now
 
 #_(let [compa  (uima-compatible art/reg-tok  squeeze-jcas)
       hack   (resource-manager-exp {"pojo" compa})
@@ -141,31 +143,41 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
 #_(produce :analysis-engine 
   (-> art/reg-tok 
-   (uima-compatible  squeeze-jcas)
+   (uima-compatible  #(.getDocumentText %) )  ;squeeze-jcas
    class
    (AnalysisEngineFactory/createPrimitiveDescription (to-array []))))
 ;(resource-manager-exp {"pojo" art/reg-tok})
 
+; (JCasFactory/createJCas (TypeSystemDescriptionFactory/createTypeSystemDescription))
+; (doto *1 (.setDocumentText  "My name is Jim and I like pizzas!"))
+;(.process my-ae *1)
+
+
 (comment
 
-hotel_nlp.externals.uima=> (. (ClassLoader/getSystemClassLoader) loadClass "hotel_nlp.externals.uima.proxy$org.uimafit.component.JCasAnnotator_ImplBase$0")
-ClassNotFoundException hotel_nlp.externals.uima.proxy$org.uimafit.component.JCasAnnotator_ImplBase$0  
-java.net.URLClassLoader$1.run (URLClassLoader.java:366)
-
-hotel_nlp.externals.uima=> (Class/forName "hotel_nlp.externals.uima.proxy$org.uimafit.component.JCasAnnotator_ImplBase$0" false (ClassLoader/getSystemClassLoader))
-ClassNotFoundException hotel_nlp.externals.uima.proxy$org.uimafit.component.JCasAnnotator_ImplBase$0  java.net.URLClassLoader$1.run (URLClassLoader.java:366)
-
-hotel_nlp.externals.uima=> (Class/forName "hotel_nlp.externals.uima.proxy$org.uimafit.component.JCasAnnotator_ImplBase$0")
-hotel_nlp.externals.uima.proxy$org.uimafit.component.JCasAnnotator_ImplBase$0 
-
 (gen-class
-  :name   hotel_nlp.externals.UIMAFriendly
+  :name   "hotel_nlp.externals.Skeleton"
   :preﬁx "-"
   :main false
-  :extends org.uimafit.component.JCasAnnotator_ImplBase
-  :methods [[process [] void] ]
+  :state "state"
+  :init  "init"
+  :extends "org.apache.uima.analysis_component.JCasAnnotator_ImplBase"
+  :methods [[process [JCas] void] ]
+  ;:exposes-methods {}
+  :constructors {[Object] []}
 )
 
-(defn- -process []
-  ) 
+(defn -init [state]
+  [[] state])
+
+(defn- -process [this ^JCas]
+  (let [xs (jcas-input-extractor jc)] 
+      ((.state this) xs)))
+
+
+(defn extend-uima []
+ (extend-type org.apache.uima.analysis_component.JCasAnnotator_ImplBase 
+  IComponent
+  (run [this jcas] 
+    (.process this jcas))) ) 
 )
