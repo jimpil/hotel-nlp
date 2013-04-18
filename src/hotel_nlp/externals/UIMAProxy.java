@@ -1,6 +1,8 @@
 package hotel_nlp.externals;
 
-import org.apache.uima.analysis_component.JCasAnnotator_ImplBase; 
+import java.util.Map;
+import java.util.HashMap;
+import org.uimafit.component.JCasAnnotator_ImplBase; 
 import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
 import org.apache.uima.resource.ResourceInitializationException;
 import org.apache.uima.jcas.JCas;
@@ -8,17 +10,15 @@ import org.apache.uima.UimaContext;
 import org.uimafit.descriptor.ConfigurationParameter;
 import clojure.lang.RT;
 import clojure.lang.IFn;
-import clojure.lang.AFn;
-import clojure.lang.ISeq;
 
 public class UIMAProxy extends JCasAnnotator_ImplBase{
 
-  //private static IFn requireFn = RT.var("clojure.core", "require").fn(); //
+  private static IFn requireFn   = RT.var("clojure.core", "require").fn(); 
   private static IFn nsResolveFn = RT.var("clojure.core", "ns-resolve").fn();
   private static IFn symbolFn    = RT.var("clojure.core", "symbol").fn();
-
+  private static IFn varGetFn    = RT.var("clojure.core", "var-get").fn();
   private UimaContext context;
-
+  public static final Map<String, Object> resultMap = new HashMap<String, Object>();
   public static final String PARAM_NS = "ns-parameter";
   public static final String PARAM_ANNFN = "annfn-parameter";
   public static final String PARAM_EXTFN = "extfn-parameter";
@@ -42,7 +42,7 @@ public class UIMAProxy extends JCasAnnotator_ImplBase{
 
   @Override 
   public void process(JCas aJCas) throws AnalysisEngineProcessException{
-      
+
       try{
          call(ns, extfn, annfn, context, aJCas);
       }
@@ -51,16 +51,20 @@ public class UIMAProxy extends JCasAnnotator_ImplBase{
         }
         
   }
-
+  //helper method to do all the interop stuff
    private void call (String strns, String strextfn, String strannfn, UimaContext context, JCas jcas){
    
-   IFn extfn = nsResolveFn.invoke(symbolFn.invoke(strns), 
-                                  symbolFn.invoke(strextfn));
-   IFn annfn = nsResolveFn.invoke(symbolFn.invoke(strns), 
-                                  symbolFn.invoke(strannfn));
+   IFn extfn = (IFn)nsResolveFn.invoke(symbolFn.invoke(strns), 
+                                       symbolFn.invoke(strextfn));
+
+   IFn annfn = (IFn)nsResolveFn.invoke(symbolFn.invoke(strns), 
+                                       symbolFn.invoke(strannfn));
 
    Object trueInput = extfn.invoke(jcas, context); //extractor should be a function that accepts at least a JCas object - context can be null
-   annfn.invoke(trueInput); //we've now sepearted our component completely from UIMA
+   Object result = annfn.invoke(trueInput); //we've now sepearted our component completely from UIMA
+
+   System.out.println(result);
+   resultMap.put("result", result);
 
   }
 
