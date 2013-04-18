@@ -410,7 +410,7 @@ ordering."
 `(if (instance? (Class/forName "[Ljava.lang.String;") ~a) true false))
 
 
-(defmacro with-resources ;;credit to Meikel Brandmeyer (kotarak) for revisiting it fromthe book 'Joy of Clojure'
+(defmacro with-resources ;;credit to Meikel Brandmeyer (kotarak) for revisiting it from the book 'Joy of Clojure'
 "Like 'with-open' but more generic in that it doesn't assume the resources are Closeable." 
 [bindings close-fn & body]
 (assert  (vector? bindings) "bindings must be contained in a vector")
