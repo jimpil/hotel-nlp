@@ -12,6 +12,7 @@
            [org.uimafit.pipeline SimplePipeline]
            [org.uimafit.util  JCasUtil]
            ;[org.uimafit.type Sentence Token AnalyzedText]
+           [org.uimafit.component.initialize ConfigurationParameterInitializer]
            [org.uimafit.factory JCasFactory TypeSystemDescriptionFactory AnalysisEngineFactory AggregateBuilder CollectionReaderFactory]
            [hotel_nlp.concretions.models  RE-Tokenizer RE-Segmenter]
            [hotel_nlp.externals UIMAProxy] 
@@ -129,7 +130,7 @@ This fn should accept a jcas and should be able to pull the processed data out o
     x))
 
 #_(defn uima-compatible [component jcas-input-extractor]
- (proxy [org.apache.uima.analysis_component.JCasAnnotator_ImplBase][]  ;org.uimafit.component.JCasAnnotator_ImplBase 
+ (proxy [org.uimafit.component.JCasAnnotator_ImplBase][]  
    (process [^JCas jc]
     ;(if (instance? org.apache.uima.cas.AbstractCas jc) (proxy-super jc) 
     (let [xs (jcas-input-extractor jc)] 
@@ -137,8 +138,18 @@ This fn should accept a jcas and should be able to pull the processed data out o
     (process [^org.apache.uima.cas.AbstractCas abs] (proxy-super abs)))) ;;assuming component is a fn for now
 
 
-(defn uima-compatible [component jcas-input-extractor]
- (UIMAProxy. component jcas-input-extractor)) 
+(defn uima-compatible 
+  "Given the var of a component and the name of a function to extract the desired input from the JCas, 
+  returns a UIMA compatible oblect that wraps the original component. For now the component must be able to act as a function.
+  The fn referred to by 'jcas-input-extractor-string' must accept 2 arguments [JCas, UIMAContext]." 
+  [^clojure.lang.Var component-var ^String jcas-input-extractor-string]
+ (produce :analysis-engine  
+  (AnalysisEngineFactory/createPrimitiveDescription UIMAProxy  ;;ALL vars HAVE TO BE IN THE SAME NAMESPACE
+      (into-array ^String  [UIMAProxy/PARAM_NS    (-> component-var meta :ns str)
+                            UIMAProxy/PARAM_ANNFN (-> component-var meta :name str)
+                            UIMAProxy/PARAM_EXTFN  jcas-input-extractor-string]))))
+
+
 
 #_(let [compa  (uima-compatible art/reg-tok  squeeze-jcas)
       hack   (resource-manager-exp {"pojo" compa})
@@ -150,7 +161,9 @@ This fn should accept a jcas and should be able to pull the processed data out o
   (-> art/reg-tok 
    (uima-compatible  #(.getDocumentText %) )  ;squeeze-jcas
    class
-   (AnalysisEngineFactory/createPrimitiveDescription (to-array []))))
+   (AnalysisEngineFactory/createPrimitiveDescription (to-array [UIMAProxy/PARAM_NS "uimaclj.core.test"
+                                                                UIMAProxy/PARAM_ANNFN "uimaclj.core.test"
+                                                                UIMAProxy/PARAM_EXTFN  "uimaclj.core.test"]))))
 ;(resource-manager-exp {"pojo" art/reg-tok})
 
 ; (JCasFactory/createJCas (TypeSystemDescriptionFactory/createTypeSystemDescription))
