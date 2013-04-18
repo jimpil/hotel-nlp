@@ -13,7 +13,8 @@
            [org.uimafit.util  JCasUtil]
            ;[org.uimafit.type Sentence Token AnalyzedText]
            [org.uimafit.factory JCasFactory TypeSystemDescriptionFactory AnalysisEngineFactory AggregateBuilder CollectionReaderFactory]
-           [hotel_nlp.concretions.models  RE-Tokenizer RE-Segmenter] 
+           [hotel_nlp.concretions.models  RE-Tokenizer RE-Segmenter]
+           [hotel_nlp.externals UIMAProxy] 
   )
 )
 
@@ -127,13 +128,17 @@ This fn should accept a jcas and should be able to pull the processed data out o
        x (JCasUtil/select jcas c)]
     x))
 
-(defn uima-compatible [component jcas-input-extractor]
+#_(defn uima-compatible [component jcas-input-extractor]
  (proxy [org.apache.uima.analysis_component.JCasAnnotator_ImplBase][]  ;org.uimafit.component.JCasAnnotator_ImplBase 
    (process [^JCas jc]
     ;(if (instance? org.apache.uima.cas.AbstractCas jc) (proxy-super jc) 
     (let [xs (jcas-input-extractor jc)] 
       (component xs)))
     (process [^org.apache.uima.cas.AbstractCas abs] (proxy-super abs)))) ;;assuming component is a fn for now
+
+
+(defn uima-compatible [component jcas-input-extractor]
+ (UIMAProxy. component jcas-input-extractor)) 
 
 #_(let [compa  (uima-compatible art/reg-tok  squeeze-jcas)
       hack   (resource-manager-exp {"pojo" compa})
@@ -167,12 +172,6 @@ This fn should accept a jcas and should be able to pull the processed data out o
   :constructors {[Object] []}
 )
 
-(defn -init [state]
-  [[] state])
-
-(defn- -process [this ^JCas]
-  (let [xs (jcas-input-extractor jc)] 
-      ((.state this) xs)))
 
 
 (defn extend-uima []
