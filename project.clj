@@ -36,8 +36,8 @@
   ;:jar-name           ; name of the jar produced by 'lein jar'
   ;:uberjar-name "hotel-nlp.jar" ; same for 'lein uberjar'
   :resource-paths ["resources" "~/gate-7.1-build4485-ALL/lib/*.jar" "~/GIMLI/resources" ]  
-  :java-source-paths ["src/java"]
-  ;:aot []
+  :java-source-paths ["src/java" "src/hotel_nlp/externals"]
+  ;:aot [hotel_nlp.protocols]
   ;:warn-on-reflection true
   ;:main cluja.app.core
   :pom-addition [:developers  [:developer {:id "jimpil"}
