@@ -8,28 +8,24 @@ import org.apache.uima.resource.ResourceInitializationException;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.UimaContext;
 import org.uimafit.descriptor.ConfigurationParameter;
-import clojure.lang.RT;
+//import clojure.lang.DynamicClassLoader;
 import clojure.lang.IFn;
 
 public class UIMAProxy extends JCasAnnotator_ImplBase{
 
-  private static IFn requireFn   = RT.var("clojure.core", "require").fn(); 
-  private static IFn nsResolveFn = RT.var("clojure.core", "ns-resolve").fn();
-  private static IFn symbolFn    = RT.var("clojure.core", "symbol").fn();
-  private static IFn varGetFn    = RT.var("clojure.core", "var-get").fn();
   private UimaContext context;
   public static final Map<String, Object> resultMap = new HashMap<String, Object>();
-  public static final String PARAM_NS = "ns-parameter";
+  public static final String PARAM_POSTFN = "postfn-parameter";
   public static final String PARAM_ANNFN = "annfn-parameter";
   public static final String PARAM_EXTFN = "extfn-parameter";
 
-  @ConfigurationParameter(name = PARAM_NS) //the namespace string
-  private String ns;
+  @ConfigurationParameter(name = PARAM_POSTFN) //the namespace string
+  private String postfn;
 
-  @ConfigurationParameter(name = PARAM_EXTFN) //the input-extractor-fn string
+  @ConfigurationParameter(name = PARAM_EXTFN) //the input-extractor-fn-class string
   private String extfn;
 
-  @ConfigurationParameter(name = PARAM_ANNFN) //the annotator-fn string
+  @ConfigurationParameter(name = PARAM_ANNFN) //the annotator-fn-class string
   private String annfn;
 
  
@@ -43,29 +39,33 @@ public class UIMAProxy extends JCasAnnotator_ImplBase{
   @Override 
   public void process(JCas aJCas) throws AnalysisEngineProcessException{
 
-      try{
-         call(ns, extfn, annfn, context, aJCas);
-      }
+      try{ doActualWork(extfn, annfn, postfn, context, aJCas); }
       catch (Exception e){
            throw new AnalysisEngineProcessException(e);
         }
         
   }
   //helper method to do all the interop stuff
-   private void call (String strns, String strextfn, String strannfn, UimaContext context, JCas jcas){
-   
-   IFn extfn = (IFn)nsResolveFn.invoke(symbolFn.invoke(strns), 
-                                       symbolFn.invoke(strextfn));
+   private void doActualWork (String strextfn, String strannfn, String strpostfn, UimaContext context, JCas jcas){
+    IFn extfn = null; 
+    IFn annfn = null;
+    IFn postfn = null;
+    ClassLoader dcl = Thread.currentThread().getContextClassLoader();  //should return Clojure's dynamic-classloader
 
-   IFn annfn = (IFn)nsResolveFn.invoke(symbolFn.invoke(strns), 
-                                       symbolFn.invoke(strannfn));
+     try{  
+         extfn =  (IFn)Class.forName(strextfn,  true, dcl).newInstance();
+         postfn = (IFn)Class.forName(strpostfn, true, dcl).newInstance();
+         annfn =  (IFn)Class.forName(strannfn,  true, dcl).newInstance();
+    }
+    catch (Exception e) {
+      throw new RuntimeException(e);
+    }
 
    Object trueInput = extfn.invoke(jcas, context); //extractor should be a function that accepts at least a JCas object - context can be null
    Object result = annfn.invoke(trueInput); //we've now sepearted our component completely from UIMA
-
-   System.out.println(result);
-   resultMap.put("result", result);
+   
+   resultMap.put("result", result); //for testing
+   postfn.invoke(jcas, result);
 
   }
-
 }
