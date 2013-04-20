@@ -139,15 +139,16 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
 
 (defn uima-compatible 
-  "Given the var of a component and the name of a function to extract the desired input from the JCas, 
+  "Given a component and a function to extract the desired input from the JCas, 
   returns a UIMA compatible oblect that wraps the original component. For now the component must be able to act as a function.
   The fn referred to by 'jcas-input-extractor-string' must accept 2 arguments [JCas, UIMAContext]." 
-  [^clojure.lang.Var component-var ^String jcas-input-extractor-string]
- (produce :analysis-engine  
-  (AnalysisEngineFactory/createPrimitiveDescription UIMAProxy  ;;ALL vars HAVE TO BE IN THE SAME NAMESPACE
-      (into-array ^String  [UIMAProxy/PARAM_NS    (-> component-var meta :ns str)
-                            UIMAProxy/PARAM_ANNFN (-> component-var meta :name str)
-                            UIMAProxy/PARAM_EXTFN  jcas-input-extractor-string]))))
+  [component jcas-input-extractor jcas-writer]
+ ; (let [compfn (fn [& args] (apply component args))] 
+   (produce :analysis-engine  
+    (AnalysisEngineFactory/createPrimitiveDescription UIMAProxy  ;;ALL vars HAVE TO BE IN THE SAME NAMESPACE
+       (into-array String  [UIMAProxy/PARAM_ANNFN  (-> component class .getName)  
+                            UIMAProxy/PARAM_EXTFN  (-> jcas-input-extractor  class .getName)
+                            UIMAProxy/PARAM_POSTFN (-> jcas-writer  class .getName)]))))
 
 
 
@@ -192,4 +193,16 @@ This fn should accept a jcas and should be able to pull the processed data out o
   IComponent
   (run [this jcas] 
     (.process this jcas))) ) 
+
+(load-file "src/hotel_nlp/externals/uima.clj")
+(use 'hotel_nlp.externals.uima)
+(def my-tokenizer #(hotel_nlp.concretions.artefacts/reg-tok %)) ;this artefact can act as a fn but is not of type IFn
+(defn extractor [t _] (.getDocumentText t))
+(uima-compatible my-tokenizer extractor str)
+(def my-ae *1)
+(org.uimafit.factory.JCasFactory/createJCas (org.uimafit.factory.TypeSystemDescriptionFactory/createTypeSystemDescription))
+ (doto *1 (.setDocumentText  "My name is Jim and I like pizzas!"))
+ (.process my-ae *1)
+ hotel_nlp.externals.UIMAProxy/resultMap
+
 )
