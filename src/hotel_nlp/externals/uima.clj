@@ -24,8 +24,6 @@
 (def dynamic-classloader (. (Thread/currentThread) getContextClassLoader))
 
 
-;(org.apache.uima.resource.impl.ResourceManager_impl. (. (Thread/currentThread) getContextClassLoader))
-
 (defn alt-implementation 
  "Specify an uima implementation other than the default one.
  If you choose to do this, make sure to call this fn before doing anything else." 
@@ -105,7 +103,7 @@ This fn should accept a jcas and should be able to pull the processed data out o
  "Produce UIMA components according to some ResourceSpecifier objects (which you get from calling (xml-resource some.xml)."
 [what specifier & {:keys [resource-manager par-requests timeout] 
                    :or   {timeout 0 resource-manager (doto (UIMAFramework/newDefaultResourceManager) 
-                                                        (.setExtensionClassPath dynamic-classloader "" true))}}]
+                                                       (.setExtensionClassPath dynamic-classloader "" true))}}]
 (let [min-params {"TIMEOUT_PERIOD" (int timeout) 
                   ;"NUM_SIMULTANEOUS_REQUESTS" (int par-requests)
                   "RESOURCE_MANAGER" resource-manager}
@@ -196,13 +194,33 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
 (load-file "src/hotel_nlp/externals/uima.clj")
 (use 'hotel_nlp.externals.uima)
-(def my-tokenizer #(hotel_nlp.concretions.artefacts/reg-tok %)) ;this artefact can act as a fn but is not of type IFn
+(require '[hotel_nlp.helper :as help])
+(def my-tokenizer #(hotel_nlp.concretions.artefacts/reg-tok %)) ;this artefact can act as a fn but is not of type IFn so we need to wrap it
 (defn extractor [t _] (.getDocumentText t))
-(uima-compatible my-tokenizer extractor str)
+(defn post-fn [jc res]
+ (let [cas (.getCas jc)
+      type-system (.getTypeSystem jc) 
+      type (.getType type-system "uima.tcas.Annotation")
+      i    (atom 0)]
+  (.addFsToIndexes cas 
+    (.createAnnotation cas type 0 (count res))) ;the sentence annotation    
+ (doseq [^String x res]
+   (let [size (count x)]
+  (.addFsToIndexes cas 
+    (.createAnnotation cas type @i (+ @i size))) ;the token annotations
+  (swap! i + (inc size))))
+
+  ))
+(uima-compatible my-tokenizer extractor post-fn)
 (def my-ae *1)
 (org.uimafit.factory.JCasFactory/createJCas (org.uimafit.factory.TypeSystemDescriptionFactory/createTypeSystemDescription))
  (doto *1 (.setDocumentText  "My name is Jim and I like pizzas!"))
  (.process my-ae *1)
  hotel_nlp.externals.UIMAProxy/resultMap
+
+ ;---------
+
+ (def tagger (doto (HMMTagger.) (.initialize ))
+
 
 )
