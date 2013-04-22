@@ -172,17 +172,12 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
 (comment
 
-(gen-class
-  :name   "hotel_nlp.externals.Skeleton"
-  :preﬁx "-"
-  :main false
-  :state "state"
-  :init  "init"
-  :extends "org.apache.uima.analysis_component.JCasAnnotator_ImplBase"
-  :methods [[process [JCas] void] ]
-  ;:exposes-methods {}
-  :constructors {[Object] []}
-)
+(defn inject-annotation! [^JCas jc [^Class klass  begin end]]
+  (let [cas (.getCas jc)
+        type-system (.getTypeSystem jc) 
+        type (.getType type-system (.getName klass))])
+ (.addFsToIndexes cas 
+    (.createAnnotation cas type begin end)))
 
 
 
@@ -197,20 +192,14 @@ This fn should accept a jcas and should be able to pull the processed data out o
 (require '[hotel_nlp.helper :as help])
 (def my-tokenizer #(hotel_nlp.concretions.artefacts/reg-tok %)) ;this artefact can act as a fn but is not of type IFn so we need to wrap it
 (defn extractor [t _] (.getDocumentText t))
-(defn post-fn [jc res]
- (let [cas (.getCas jc)
-      type-system (.getTypeSystem jc) 
-      type (.getType type-system "uima.tcas.Annotation")
-      i    (atom 0)]
-  (.addFsToIndexes cas 
-    (.createAnnotation cas type 0 (count res))) ;the sentence annotation    
+(defn post-fn [jc res]  
+ (let [i  (atom 0)]
+   (inject-annotation! jc [uima.tcas.Annotation 0 (count res)]) ;the sentence annotation    
  (doseq [^String x res]
-   (let [size (count x)]
-  (.addFsToIndexes cas 
-    (.createAnnotation cas type @i (+ @i size))) ;the token annotations
-  (swap! i + (inc size))))
-
-  ))
+   (let [size (count x)] 
+  (inject-annotation! jc [uima.tcas.Annotation @i (+ @i size)]) ;the token annotations
+  (swap! i + (inc size)))
+)  ))
 (uima-compatible my-tokenizer extractor post-fn)
 (def my-ae *1)
 (org.uimafit.factory.JCasFactory/createJCas (org.uimafit.factory.TypeSystemDescriptionFactory/createTypeSystemDescription))
