@@ -65,7 +65,7 @@ public class UIMAProxy extends JCasAnnotator_ImplBase{
    Object result = annfn.invoke(trueInput); //we've now sepearted our component completely from UIMA
    
    resultMap.put("result", result); //for testing
-   postfn.invoke(jcas, result);
+   postfn.invoke(jcas, result, trueInput);
 
   }
 }
