@@ -5,6 +5,7 @@
             [hotel_nlp.concretions.artefacts :as art])
   (:import [org.apache.uima UIMAFramework]
   		     [org.apache.uima.jcas JCas]
+           [org.apache.uima.jcas.tcas Annotation]
   	       [org.apache.uima.resource ResourceSpecifier ResourceManager]
   	       [org.apache.uima.util XMLInputSource CasPool]
   	       [org.apache.uima.analysis_engine AnalysisEngine]
@@ -127,13 +128,16 @@ This fn should accept a jcas and should be able to pull the processed data out o
        x (JCasUtil/select jcas c)]
     x))
 
-#_(defn uima-compatible [component jcas-input-extractor]
- (proxy [org.uimafit.component.JCasAnnotator_ImplBase][]  
-   (process [^JCas jc]
-    ;(if (instance? org.apache.uima.cas.AbstractCas jc) (proxy-super jc) 
-    (let [xs (jcas-input-extractor jc)] 
-      (component xs)))
-    (process [^org.apache.uima.cas.AbstractCas abs] (proxy-super abs)))) ;;assuming component is a fn for now
+(defn inject-annotation! [^JCas jc [^String type-name  begin end]]
+  (let [cas (.getCas jc)
+        type-system (.getTypeSystem jc) 
+        type (.getType type-system type-name)]
+ (.addFsToIndexes cas 
+    (.createAnnotation cas type begin end))))
+
+(defn select-annotations [^JCas jc ^Class klass start end]
+  (JCasUtil/selectCovered jc klass start end))
+
 
 
 (defn uima-compatible 
@@ -166,20 +170,11 @@ This fn should accept a jcas and should be able to pull the processed data out o
 ;(resource-manager-exp {"pojo" art/reg-tok})
 
 ; (JCasFactory/createJCas (TypeSystemDescriptionFactory/createTypeSystemDescription))
-; (doto *1 (.setDocumentText  "My name is Jim and I like pizzas!"))
+; (doto *1 (.setDocumentText  "My name is Jim and I like pizzas !"))
 ;(.process my-ae *1)
 
 
 (comment
-
-(defn inject-annotation! [^JCas jc [^Class klass  begin end]]
-  (let [cas (.getCas jc)
-        type-system (.getTypeSystem jc) 
-        type (.getType type-system (.getName klass))])
- (.addFsToIndexes cas 
-    (.createAnnotation cas type begin end)))
-
-
 
 (defn extend-uima []
  (extend-type org.apache.uima.analysis_component.JCasAnnotator_ImplBase 
@@ -192,24 +187,27 @@ This fn should accept a jcas and should be able to pull the processed data out o
 (require '[hotel_nlp.helper :as help])
 (def my-tokenizer #(hotel_nlp.concretions.artefacts/reg-tok %)) ;this artefact can act as a fn but is not of type IFn so we need to wrap it
 (defn extractor [t _] (.getDocumentText t))
-(defn post-fn [jc res]  
+(defn post-fn [jc res original-input]  
  (let [i  (atom 0)]
-   (inject-annotation! jc [uima.tcas.Annotation 0 (count res)]) ;the sentence annotation    
+   (inject-annotation! jc ["uima.tcas.Annotation" 0 (count original-input)]) ;the entire sentence annotation    
  (doseq [^String x res]
    (let [size (count x)] 
-  (inject-annotation! jc [uima.tcas.Annotation @i (+ @i size)]) ;the token annotations
+  (inject-annotation! jc ["uima.tcas.Annotation" @i (+ @i size)]) ;the token annotations
   (swap! i + (inc size)))
-)  ))
+ ) ))
 (uima-compatible my-tokenizer extractor post-fn)
 (def my-ae *1)
-(org.uimafit.factory.JCasFactory/createJCas (org.uimafit.factory.TypeSystemDescriptionFactory/createTypeSystemDescription))
- (doto *1 (.setDocumentText  "My name is Jim and I like pizzas!"))
- (.process my-ae *1)
+(def sample "My name is Jim and I like pizzas !")
+(def jc (org.uimafit.factory.JCasFactory/createJCas (org.uimafit.factory.TypeSystemDescriptionFactory/createTypeSystemDescription)))
+(.setDocumentText jc  sample)
+ (.process my-ae jc)
  hotel_nlp.externals.UIMAProxy/resultMap
+
+ (select-annotations jc Annotation 0 (count sample))
 
  ;---------
 
- (def tagger (doto (HMMTagger.) (.initialize ))
+ (def tagger (doto (HMMTagger.) (.initialize )))
 
 
 )
