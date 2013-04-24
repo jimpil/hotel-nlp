@@ -10,7 +10,7 @@
 
 (definline component? 
 "Tests if c satisfies IComponent." [c]
- `(if (satisfies? IComponent ~c) true false)) 
+ `(satisfies? IComponent ~c)) 
  
 (defn fn->component [f]
 (reify IComponent
@@ -34,13 +34,14 @@
  
 
 (defmacro defworkflow 
-"Defines a top-level Workflow with the specified name containing the given Components."  
+"Defines a top-level Workflow with the specified name containing the given Components. Secodn argument can be a doc-string fro this workflow."  
 [name & components]
 (let [[doc & comps :as all] (eval (vec components)) 
        cs  (if (string? doc) [comps true] [all false])
        ds  (if (second cs) doc "Undocumented workflow.")]
   (assert (every? component? (first cs)) "Can only accept IComponents")
-`(def ~(with-meta name (assoc (meta name) :doc ds)) (Workflow. '~(first cs) {:description ~ds} nil))))
+`(def ~(with-meta name (assoc (meta name) :doc ds)) 
+   (Workflow. '~(first cs) {:description ~ds} nil))))
   
 
   
