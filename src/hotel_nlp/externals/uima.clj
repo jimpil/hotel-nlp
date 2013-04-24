@@ -198,7 +198,7 @@ This fn should accept a jcas and should be able to pull the processed data out o
 (uima-compatible my-tokenizer extractor post-fn)
 (def my-ae *1)
 (def sample "My name is Jim and I like pizzas !")
-(def jc (org.uimafit.factory.JCasFactory/createJCas (org.uimafit.factory.TypeSystemDescriptionFactory/createTypeSystemDescription)))
+(def jc (org.uimafit.factory.JCasFactory/createJCas))
 (.setDocumentText jc  sample)
  (.process my-ae jc)
  hotel_nlp.externals.UIMAProxy/resultMap
