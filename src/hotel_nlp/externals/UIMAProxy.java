@@ -18,6 +18,7 @@ public class UIMAProxy extends JCasAnnotator_ImplBase{
   public static final String PARAM_POSTFN = "postfn-parameter";
   public static final String PARAM_ANNFN = "annfn-parameter";
   public static final String PARAM_EXTFN = "extfn-parameter";
+  public ClassLoader dcl = null; 
 
   @ConfigurationParameter(name = PARAM_POSTFN) //the namespace string
   private String postfn;
@@ -33,6 +34,7 @@ public class UIMAProxy extends JCasAnnotator_ImplBase{
   public void initialize(final UimaContext context) throws ResourceInitializationException {
     super.initialize(context);
     this.context = context;
+    dcl = Thread.currentThread().getContextClassLoader();  //should return Clojure's dynamic-classloader
   }    
 
 
@@ -50,21 +52,32 @@ public class UIMAProxy extends JCasAnnotator_ImplBase{
     IFn extfn = null; 
     IFn annfn = null;
     IFn postfn = null;
-    ClassLoader dcl = Thread.currentThread().getContextClassLoader();  //should return Clojure's dynamic-classloader
+    Object trueInput = null;
+    
 
-     try{  
-         extfn =  (IFn)Class.forName(strextfn,  true, dcl).newInstance();
-         postfn = (IFn)Class.forName(strpostfn, true, dcl).newInstance();
-         annfn =  (IFn)Class.forName(strannfn,  true, dcl).newInstance();
+    try{  
+        extfn =  (IFn)Class.forName(strextfn,  true, dcl).newInstance();
+        postfn = (IFn)Class.forName(strpostfn, true, dcl).newInstance();     
     }
-    catch (Exception e) {
+    catch (Exception e) {System.err.println("Exception ignored! extractor/post fns remain null...hopefully the annotator can handle extracting from and writing to the CAS.");} 
+
+
+     try{ annfn =  (IFn)Class.forName(strannfn,  true, dcl).newInstance(); } //this is the important one - cannot be null
+     catch (Exception e) {
       throw new RuntimeException(e);
     }
-
-   Object trueInput = extfn.invoke(jcas, context); //extractor should be a function that accepts at least a JCas object - context can be null
-   Object result = annfn.invoke(trueInput); //we've now sepearted our component completely from UIMA
+   
+   Object result = null;
+   if (extfn != null){
+     trueInput = extfn.invoke(jcas, context); //extractor should be a function that accepts at least a JCas object - context can be null
+     result = annfn.invoke(trueInput); //we've now sepearted our component completely from UIMA - it only expects trueInput
+    }
+    else 
+      result = annfn.invoke(jcas);  //assuming consumer has bundled up all the functionality in his ann-fn
    
    resultMap.put("result", result); //for testing
+
+   if (extfn != null)
    postfn.invoke(jcas, result, trueInput);
 
   }
