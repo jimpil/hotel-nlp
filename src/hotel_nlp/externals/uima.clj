@@ -11,7 +11,7 @@
   	       [org.apache.uima.analysis_engine AnalysisEngine]
            [org.uimafit.component JCasAnnotator_ImplBase]
            [org.uimafit.pipeline SimplePipeline]
-           [org.uimafit.util  JCasUtil]
+           [org.uimafit.util  JCasUtil CasUtil]
            ;[org.uimafit.type Sentence Token AnalyzedText]
            [org.uimafit.component.initialize ConfigurationParameterInitializer]
            [org.uimafit.factory JCasFactory TypeSystemDescriptionFactory AnalysisEngineFactory AggregateBuilder CollectionReaderFactory]
@@ -128,10 +128,10 @@ This fn should accept a jcas and should be able to pull the processed data out o
        x (JCasUtil/select jcas c)]
     x))
 
-(defn inject-annotation! [^JCas jc [^String type-name  begin end]]
+(defn inject-annotation! [^JCas jc [^Class type  begin end]]
   (let [cas (.getCas jc)
         type-system (.getTypeSystem jc) 
-        type (.getType type-system type-name)]
+        type (CasUtil/getAnnotationType cas type)  #_(.getType type-system type-name)]   
  (.addFsToIndexes cas 
     (.createAnnotation cas type begin end))))
 
@@ -189,10 +189,10 @@ This fn should accept a jcas and should be able to pull the processed data out o
 (defn extractor [t _] (.getDocumentText t))
 (defn post-fn [jc res original-input]  
  (let [i  (atom 0)]
-   (inject-annotation! jc ["uima.tcas.Annotation" 0 (count original-input)]) ;the entire sentence annotation    
+   (inject-annotation! jc [Annotation 0 (count original-input)]) ;the entire sentence annotation    
  (doseq [^String x res]
    (let [size (count x)] 
-  (inject-annotation! jc ["uima.tcas.Annotation" @i (+ @i size)]) ;the token annotations
+  (inject-annotation! jc [Annotation @i (+ @i size)]) ;the token annotations
   (swap! i + (inc size)))
  ) ))
 (uima-compatible my-tokenizer extractor post-fn)
@@ -207,7 +207,7 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
  ;---------
 
- (def tagger (doto (HMMTagger.) (.initialize )))
+ (def uima-hmm-tagger (doto (HMMTagger.) (.initialize )))
 
 
 )
