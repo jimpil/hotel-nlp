@@ -16,6 +16,7 @@
            [org.uimafit.component.initialize ConfigurationParameterInitializer]
            [org.uimafit.factory JCasFactory TypeSystemDescriptionFactory AnalysisEngineFactory AggregateBuilder CollectionReaderFactory]
            [hotel_nlp.concretions.models  RE-Tokenizer RE-Segmenter]
+           [org.apache.uima.examples.tagger HMMTagger HMMModelTrainer]
            [hotel_nlp.externals UIMAProxy] 
   )
 )
@@ -44,7 +45,7 @@
 
 (defn resource-manager-exp 
 "UIMA does not support injections of pre-existing object instances unless they have been created within the context of UIMA (Clojure records aren't for example).
- One could stat playing with ClassLoaders to essentially inject whatever instances he/she wants but that is tricky and could leave to other runtime problems. 
+ One could stat playing with ClassLoaders to essentially inject whatever instances he/she wants but that is tricky and could lead to other runtime problems. 
  Starting from uimafit 1.4.0 there is some experimental code (an extended ResourceManager) that allows exactly that. This manager can set its externalContext using
  a Map<String,Object> where we're mapping names object-instances. "
   [context-map]
@@ -131,12 +132,23 @@ This fn should accept a jcas and should be able to pull the processed data out o
 (defn inject-annotation! [^JCas jc [^Class type  begin end]]
   (let [cas (.getCas jc)
         type-system (.getTypeSystem jc) 
-        type (CasUtil/getAnnotationType cas type)  #_(.getType type-system type-name)]   
+        type (CasUtil/getAnnotationType cas type)]   
  (.addFsToIndexes cas 
     (.createAnnotation cas type begin end))))
 
 (defn select-annotations [^JCas jc ^Class klass start end]
   (JCasUtil/selectCovered jc klass start end))
+
+(defn calculate-indices [original matches]
+  (let [matcher #(re-matcher (re-pattern %) original)]
+  (with-local-vars [cpos 0]
+  (reduce 
+    #(assoc %1 %2 
+       (let [ma1 (doto (matcher %2) (.find @cpos))
+             endpos (.end ma1)]
+        (var-set cpos endpos) 
+        [(.start ma1) endpos])) 
+    {} matches))))
 
 
 
@@ -176,6 +188,10 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
 (comment
 
+
+
+
+
 (defn extend-uima []
  (extend-type org.apache.uima.analysis_component.JCasAnnotator_ImplBase 
   IComponent
@@ -186,19 +202,18 @@ This fn should accept a jcas and should be able to pull the processed data out o
 (use 'hotel_nlp.externals.uima)
 (require '[hotel_nlp.helper :as help])
 (def my-tokenizer #(hotel_nlp.concretions.artefacts/reg-tok %)) ;this artefact can act as a fn but is not of type IFn so we need to wrap it
-(defn extractor [t _] (.getDocumentText t))
+(defn extractor [t context] (.getDocumentText t))
 (defn post-fn [jc res original-input]  
- (let [i  (atom 0)]
    (inject-annotation! jc [Annotation 0 (count original-input)]) ;the entire sentence annotation    
- (doseq [^String x res]
-   (let [size (count x)] 
-  (inject-annotation! jc [Annotation @i (+ @i size)]) ;the token annotations
-  (swap! i + (inc size)))
- ) ))
+     (doseq [[_ [b e]] (calculate-indices original-input res)]
+      (inject-annotation! jc [Annotation b e])) )
+
+
+
 (uima-compatible my-tokenizer extractor post-fn)
 (def my-ae *1)
 (def sample "My name is Jim and I like pizzas !")
-(def jc (org.uimafit.factory.JCasFactory/createJCas))
+(def jc (JCasFactory/createJCas))
 (.setDocumentText jc  sample)
  (.process my-ae jc)
  hotel_nlp.externals.UIMAProxy/resultMap
@@ -207,7 +222,21 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
  ;---------
 
- (def uima-hmm-tagger (doto (HMMTagger.) (.initialize )))
+ (defn uima-hmm-postag [whole-sentence tokens & {:keys[language n] 
+                                                 :or {language :english n "3"}}] 
+  (let [model (condp = language 
+                   :english "file:english/BrownModel.dat" 
+                   :german  "file:german/TuebaModel.dat"
+                (throw (IllegalArgumentEXception. "The language you specified is not supported...Only :english or :german for now...")))
+        config (into-array String [HMMTagger/NGRAM_SIZE n 
+                                   HMMTagger/ModelFile model]) 
+        tagger (if (nil? tokens) (AnalysisEngineFactory/createAnalysisEngineFromPath "HMMTaggerAggregate.xml" config))
+                                 (AnalysisEngineFactory/createAnalysisEngineFromPath "HMMTagger.xml" config)
+        jc (doto (JCasFactory/createJCas)
+              (setDocumentText whole-sentence))]
+       (if (nil? tokens) (.process tagger jc)
+         (.process tagger (doto jc )))))
+
 
 
 )
