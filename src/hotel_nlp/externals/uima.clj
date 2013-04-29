@@ -1,5 +1,6 @@
 (ns hotel_nlp.externals.uima
   (:require [clojure.pprint :refer [pprint]]
+            [clojure.java.io :refer [resource]]
             [hotel_nlp.helper :as help]
             [hotel_nlp.concretions.models] 
             [hotel_nlp.concretions.artefacts :as art])
@@ -57,7 +58,7 @@
 
 (defn ^ResourceSpecifier  xml-resource 
 "Parses an xml-descriptor file and returns the ResourceSpecifier object."
- [^String xml-descriptor-loc]
+ [xml-descriptor-loc]
   (let [source (XMLInputSource. xml-descriptor-loc)]
 	(.parseResourceSpecifier (xml-parser) source)))
 
@@ -105,13 +106,13 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
 (defn produce ;(produce :analysis-engine [(xml-resource "dummy-descriptor.xml")] :par-requests 3)
  "Produce UIMA components according to some ResourceSpecifier objects (which you get from calling (xml-resource some.xml)."
-[what specifier & {:keys [resource-manager par-requests timeout] 
-                   :or   {timeout 0 resource-manager (doto (UIMAFramework/newDefaultResourceManager) 
-                                                       (.setExtensionClassPath dynamic-classloader "" true))}}]
-(let [min-params {"TIMEOUT_PERIOD" (int timeout) 
+[what specifier config-map & {:keys [resource-manager] 
+                              :or {resource-manager (doto (UIMAFramework/newDefaultResourceManager) 
+                                                           (.setExtensionClassPath dynamic-classloader "" true))}}]
+(let [min-params {"TIMEOUT_PERIOD" 0 
                   ;"NUM_SIMULTANEOUS_REQUESTS" (int par-requests)
                   "RESOURCE_MANAGER" resource-manager}
-      additional-params (if par-requests (assoc min-params "NUM_SIMULTANEOUS_REQUESTS" (int par-requests)) min-params)]
+      additional-params (merge min-params config-map) #_(if par-requests (assoc min-params "NUM_SIMULTANEOUS_REQUESTS" (int par-requests)) min-params)] 
 (case what
 	:analysis-engine  (UIMAFramework/produceAnalysisEngine specifier additional-params)                           
 	:cas-consumer     (UIMAFramework/produceCasConsumer specifier additional-params)
@@ -187,6 +188,25 @@ This fn should accept a jcas and should be able to pull the processed data out o
 ; (doto *1 (.setDocumentText  "My name is Jim and I like pizzas !"))
 ;(.process my-ae *1)
 
+(def sample "My name is Jim and I like pizzas a lot !")
+(defn uima-hmm-postag [path-to-model whole-sentence tokens & {:keys[language n] 
+                                                              :or {language :english n (int 3)}}] 
+  (let [ #_(condp = language 
+                   :english "/home/sorted/clooJWorkspace/hotel-nlp/resources/pretrained_models/BrownModel.dat" ;(.getFile (.openConnection (clojure.java.io/resource "english/BrownModel.dat")))  
+                   :german   (.getPath (clojure.java.io/resource "german/TuebaModel.dat"))
+                (throw (IllegalArgumentException. "The language you specified is not supported...Only :english or :german for now...")))
+        config {"NGRAM_SIZE" n 
+                "ModelFile" model}
+        tagger (if (nil? tokens) (produce :analysis-engine (-> "HmmTaggerAggregate.xml" resource xml-resource) config)   
+                                 (produce :analysis-engine (-> "HmmTagger.xml" resource xml-resource) config))       
+        jc (doto (jcas tagger) 
+              (.setDocumentText whole-sentence))]
+       (if (nil? tokens) (.process tagger jc) ;proceed with aggregate
+        (do                                   ;else use the tokens to inject annotations and don't use the white-space tokenizer
+          (inject-annotation! jc [SentenceAnnotation 0 (count whole-sentence)])
+          (doseq [[_ [b e]] (calculate-indices whole-sentence tokens)]
+            (inject-annotation! jc [TokenAnnotation b e]))
+         (.process tagger jc) jc))))
 
 (comment
 
@@ -222,26 +242,8 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
  (select-annotations jc Annotation 0 (count sample))
 
- ;---------   (->> "HmmTagger.xml" clojure.java.io/resource xml-resource (produce :analysis-engine))
+ ;---------   
 
- (defn uima-hmm-postag [whole-sentence tokens & {:keys[language n] 
-                                                 :or {language :english n (int 3)}}] 
-  (let [model (condp = language 
-                   :english "/home/sorted/clooJWorkspace/hotel-nlp/resources/pretrained_models/BrownModel.dat" ;(.getFile (.openConnection (clojure.java.io/resource "english/BrownModel.dat")))  
-                   :german   (.getPath (clojure.java.io/resource "german/TuebaModel.dat"))
-                (throw (IllegalArgumentException. "The language you specified is not supported...Only :english or :german for now...")))
-        config (to-array  ["NGRAM_SIZE" n 
-                           "ModelFile" model]) 
-        tagger (if (nil? tokens) (AnalysisEngineFactory/createAnalysisEngine "HmmTaggerAggregate" config)  
-                                 (AnalysisEngineFactory/createAnalysisEngine "HmmTagger" config)) 
-        jc (doto (JCasFactory/createJCas)
-              (.setDocumentText whole-sentence))]
-       (if (nil? tokens) (.process tagger jc) 
-        (do 
-          (inject-annotation! jc [SentenceAnnotation 0 (count whole-sentence)])
-          (doseq [[_ [b e]] (calculate-indices whole-sentence tokens)]
-            (inject-annotation! jc [TokenAnnotation b e]))
-         (.process tagger jc)))))
-
+ 
 
 )
