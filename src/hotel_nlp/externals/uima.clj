@@ -17,7 +17,9 @@
            [org.uimafit.factory JCasFactory TypeSystemDescriptionFactory AnalysisEngineFactory AggregateBuilder CollectionReaderFactory]
            [hotel_nlp.concretions.models  RE-Tokenizer RE-Segmenter]
            [org.apache.uima.examples.tagger HMMTagger HMMModelTrainer]
-           [hotel_nlp.externals UIMAProxy] 
+           [org.apache.uima TokenAnnotation SentenceAnnotation]
+           [hotel_nlp.externals UIMAProxy]
+           [java.net JarURLConnection] 
   )
 )
 
@@ -55,8 +57,8 @@
 
 (defn ^ResourceSpecifier  xml-resource 
 "Parses an xml-descriptor file and returns the ResourceSpecifier object."
- [^String xml-descriptor]
-  (let [source (XMLInputSource. xml-descriptor)]
+ [^String xml-descriptor-loc]
+  (let [source (XMLInputSource. xml-descriptor-loc)]
 	(.parseResourceSpecifier (xml-parser) source)))
 
 (defn ^JCas jcas   
@@ -140,7 +142,7 @@ This fn should accept a jcas and should be able to pull the processed data out o
   (JCasUtil/selectCovered jc klass start end))
 
 (defn calculate-indices [original matches]
-  (let [matcher #(re-matcher (re-pattern %) original)]
+  (let [^java.util.regex.Matcher matcher #(re-matcher (re-pattern %) original)]
   (with-local-vars [cpos 0]
   (reduce 
     #(assoc %1 %2 
@@ -155,7 +157,7 @@ This fn should accept a jcas and should be able to pull the processed data out o
 (defn uima-compatible 
   "Given a component and a function to extract the desired input from the JCas, 
   returns a UIMA compatible oblect that wraps the original component. For now the component must be able to act as a function.
-  The fn referred to by 'jcas-input-extractor-string' must accept 2 arguments [JCas, UIMAContext]." 
+  The fn  'jcas-input-extractor' must accept 2 arguments [JCas, UIMAContext]." 
   [component jcas-input-extractor jcas-writer]
  ; (let [compfn (fn [& args] (apply component args))] 
    (produce :analysis-engine  
@@ -220,23 +222,26 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
  (select-annotations jc Annotation 0 (count sample))
 
- ;---------
+ ;---------   (->> "HmmTagger.xml" clojure.java.io/resource xml-resource (produce :analysis-engine))
 
  (defn uima-hmm-postag [whole-sentence tokens & {:keys[language n] 
-                                                 :or {language :english n "3"}}] 
+                                                 :or {language :english n (int 3)}}] 
   (let [model (condp = language 
-                   :english "file:english/BrownModel.dat" 
-                   :german  "file:german/TuebaModel.dat"
-                (throw (IllegalArgumentEXception. "The language you specified is not supported...Only :english or :german for now...")))
-        config (into-array String [HMMTagger/NGRAM_SIZE n 
-                                   HMMTagger/ModelFile model]) 
-        tagger (if (nil? tokens) (AnalysisEngineFactory/createAnalysisEngineFromPath "HMMTaggerAggregate.xml" config))
-                                 (AnalysisEngineFactory/createAnalysisEngineFromPath "HMMTagger.xml" config)
+                   :english "/home/sorted/clooJWorkspace/hotel-nlp/resources/pretrained_models/BrownModel.dat" ;(.getFile (.openConnection (clojure.java.io/resource "english/BrownModel.dat")))  
+                   :german   (.getPath (clojure.java.io/resource "german/TuebaModel.dat"))
+                (throw (IllegalArgumentException. "The language you specified is not supported...Only :english or :german for now...")))
+        config (to-array  ["NGRAM_SIZE" n 
+                           "ModelFile" model]) 
+        tagger (if (nil? tokens) (AnalysisEngineFactory/createAnalysisEngine "HmmTaggerAggregate" config)  
+                                 (AnalysisEngineFactory/createAnalysisEngine "HmmTagger" config)) 
         jc (doto (JCasFactory/createJCas)
-              (setDocumentText whole-sentence))]
-       (if (nil? tokens) (.process tagger jc)
-         (.process tagger (doto jc )))))
-
+              (.setDocumentText whole-sentence))]
+       (if (nil? tokens) (.process tagger jc) 
+        (do 
+          (inject-annotation! jc [SentenceAnnotation 0 (count whole-sentence)])
+          (doseq [[_ [b e]] (calculate-indices whole-sentence tokens)]
+            (inject-annotation! jc [TokenAnnotation b e]))
+         (.process tagger jc)))))
 
 
 )
