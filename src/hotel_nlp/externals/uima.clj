@@ -20,7 +20,6 @@
            [org.apache.uima.examples.tagger HMMTagger HMMModelTrainer]
            [org.apache.uima TokenAnnotation SentenceAnnotation]
            [hotel_nlp.externals UIMAProxy]
-           [java.net JarURLConnection] 
   )
 )
 
@@ -188,15 +187,15 @@ This fn should accept a jcas and should be able to pull the processed data out o
 ; (doto *1 (.setDocumentText  "My name is Jim and I like pizzas !"))
 ;(.process my-ae *1)
 
-(def sample "My name is Jim and I like pizzas a lot !")
+(def sample "All flowers need light and water to grow!")
 (defn uima-hmm-postag [path-to-model whole-sentence tokens & {:keys[language n] 
-                                                              :or {language :english n (int 3)}}] 
+                                                              :or {language :english n 3}}] 
   (let [ #_(condp = language 
                    :english "/home/sorted/clooJWorkspace/hotel-nlp/resources/pretrained_models/BrownModel.dat" ;(.getFile (.openConnection (clojure.java.io/resource "english/BrownModel.dat")))  
                    :german   (.getPath (clojure.java.io/resource "german/TuebaModel.dat"))
                 (throw (IllegalArgumentException. "The language you specified is not supported...Only :english or :german for now...")))
-        config {"NGRAM_SIZE" n 
-                "ModelFile" model}
+        config {"NGRAM_SIZE" (int n) 
+                "ModelFile"  model}
         tagger (if (nil? tokens) (produce :analysis-engine (-> "HmmTaggerAggregate.xml" resource xml-resource) config)   
                                  (produce :analysis-engine (-> "HmmTagger.xml" resource xml-resource) config))       
         jc (doto (jcas tagger) 
