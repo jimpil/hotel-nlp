@@ -24,6 +24,7 @@
                  [org.apache.uima/uimaj-core "2.4.0"]
                  ;[org.apache.uima/uimaj-examples "2.4.0"]
                  [org.apache.uima/Tagger "2.3.1"]
+                 [org.apache.uima/WhitespaceTokenizer "2.3.1"]
                  [org.uimafit/uimafit "1.4.0"] ;;stay away from xml descriptors
                  [print-foo "0.3.2"]
                  ]
