@@ -18,6 +18,7 @@
            [org.uimafit.factory JCasFactory TypeSystemDescriptionFactory AnalysisEngineFactory AggregateBuilder CollectionReaderFactory]
            [hotel_nlp.concretions.models  RE-Tokenizer RE-Segmenter]
            [org.apache.uima.examples.tagger HMMTagger HMMModelTrainer]
+           [org.apache.uima.examples.tagger.trainAndTest Token CorpusReader MappingInterface ModelGeneration]
            [org.apache.uima TokenAnnotation SentenceAnnotation]
            [hotel_nlp.externals UIMAProxy]
   )
@@ -55,7 +56,7 @@
      (.setAutoWireEnabled true)
      (.setExternalContext context-map)))
 
-(defn ^ResourceSpecifier  xml-resource 
+(defn ^ResourceSpecifier xml-resource 
 "Parses an xml-descriptor file and returns the ResourceSpecifier object."
  [xml-descriptor-loc]
   (let [source (XMLInputSource. xml-descriptor-loc)]
@@ -103,15 +104,15 @@ This fn should accept a jcas and should be able to pull the processed data out o
    (map #(AnalysisEngineFactory/createPrimitive (class %) *type-system* (to-array [])) os))
 
 
-(defn produce ;(produce :analysis-engine [(xml-resource "dummy-descriptor.xml")] :par-requests 3)
+(defn produce
  "Produce UIMA components according to some ResourceSpecifier objects (which you get from calling (xml-resource some.xml)."
 [what specifier config-map & {:keys [resource-manager] 
                               :or {resource-manager (doto (UIMAFramework/newDefaultResourceManager) 
-                                                           (.setExtensionClassPath dynamic-classloader "" true))}}]
+                                                      (.setExtensionClassPath dynamic-classloader "" true))}}]
 (let [min-params {"TIMEOUT_PERIOD" 0 
                   ;"NUM_SIMULTANEOUS_REQUESTS" (int par-requests)
                   "RESOURCE_MANAGER" resource-manager}
-      additional-params (merge min-params config-map) #_(if par-requests (assoc min-params "NUM_SIMULTANEOUS_REQUESTS" (int par-requests)) min-params)] 
+      additional-params (merge min-params config-map)] 
 (case what
 	:analysis-engine  (UIMAFramework/produceAnalysisEngine specifier additional-params)                           
 	:cas-consumer     (UIMAFramework/produceCasConsumer specifier additional-params)
@@ -141,8 +142,10 @@ This fn should accept a jcas and should be able to pull the processed data out o
 (defn select-annotations [^JCas jc ^Class klass start end]
   (JCasUtil/selectCovered jc klass start end))
 
-(defn calculate-indices [original matches]
-  (let [^java.util.regex.Matcher matcher #(re-matcher (re-pattern %) original)]
+(defn calculate-indices 
+  [original matches]
+  (let [matcher (fn ^java.util.regex.Matcher [p] 
+                  (re-matcher (re-pattern p) original))]   
   (with-local-vars [cpos 0]
   (reduce 
     #(assoc %1 %2 
@@ -153,65 +156,93 @@ This fn should accept a jcas and should be able to pull the processed data out o
     {} matches))))
 
 
-
 (defn uima-compatible 
   "Given a component and a function to extract the desired input from the JCas, 
   returns a UIMA compatible oblect that wraps the original component. For now the component must be able to act as a function.
   The fn  'jcas-input-extractor' must accept 2 arguments [JCas, UIMAContext]." 
-  [component jcas-input-extractor jcas-writer]
- ; (let [compfn (fn [& args] (apply component args))] 
+  ([component jcas-input-extractor jcas-writer config-map]
    (produce :analysis-engine  
-    (AnalysisEngineFactory/createPrimitiveDescription UIMAProxy  ;;ALL vars HAVE TO BE IN THE SAME NAMESPACE
-       (into-array String  [UIMAProxy/PARAM_ANNFN  (-> component class .getName)  
-                            UIMAProxy/PARAM_EXTFN  (-> jcas-input-extractor  class .getName)
-                            UIMAProxy/PARAM_POSTFN (-> jcas-writer  class .getName)]))))
+    (AnalysisEngineFactory/createPrimitiveDescription UIMAProxy 
+       (to-array  [UIMAProxy/PARAM_ANNFN  (class component)  
+                   UIMAProxy/PARAM_EXTFN  (class jcas-input-extractor)
+                   UIMAProxy/PARAM_POSTFN (class jcas-writer)])) config-map))
+  ([component jcas-input-extractor jcas-writer] 
+    (uima-compatible component jcas-input-extractor jcas-writer {})) )
 
-
-
-#_(let [compa  (uima-compatible art/reg-tok  squeeze-jcas)
-      hack   (resource-manager-exp {"pojo" compa})
-      desc   (AnalysisEngineFactory/createPrimitiveDescription (class compa) (to-array []))]
- (produce :analysis-engine desc :resource-manager hack))
-
-
-#_(produce :analysis-engine 
-  (-> art/reg-tok 
-   (uima-compatible  #(.getDocumentText %) )  ;squeeze-jcas
-   class
-   (AnalysisEngineFactory/createPrimitiveDescription (to-array [UIMAProxy/PARAM_NS "uimaclj.core.test"
-                                                                UIMAProxy/PARAM_ANNFN "uimaclj.core.test"
-                                                                UIMAProxy/PARAM_EXTFN  "uimaclj.core.test"]))))
 ;(resource-manager-exp {"pojo" art/reg-tok})
 
 ; (JCasFactory/createJCas (TypeSystemDescriptionFactory/createTypeSystemDescription))
 ; (doto *1 (.setDocumentText  "My name is Jim and I like pizzas !"))
 ;(.process my-ae *1)
 
-(def sample "All flowers need light and water to grow!")
-(defn uima-hmm-postag [path-to-model whole-sentence tokens & {:keys[language n] 
-                                                              :or {language :english n 3}}] 
-  (let [ #_(condp = language 
-                   :english "/home/sorted/clooJWorkspace/hotel-nlp/resources/pretrained_models/BrownModel.dat" ;(.getFile (.openConnection (clojure.java.io/resource "english/BrownModel.dat")))  
-                   :german   (.getPath (clojure.java.io/resource "german/TuebaModel.dat"))
-                (throw (IllegalArgumentException. "The language you specified is not supported...Only :english or :german for now...")))
-        config {"NGRAM_SIZE" (int n) 
-                "ModelFile"  model}
-        tagger (if (nil? tokens) (produce :analysis-engine (-> "HmmTaggerAggregate.xml" resource xml-resource) config)   
-                                 (produce :analysis-engine (-> "HmmTagger.xml" resource xml-resource) config))       
-        jc (doto (jcas tagger) 
-              (.setDocumentText whole-sentence))]
-       (if (nil? tokens) (.process tagger jc) ;proceed with aggregate
-        (do                                   ;else use the tokens to inject annotations and don't use the white-space tokenizer
-          (inject-annotation! jc [SentenceAnnotation 0 (count whole-sentence)])
-          (doseq [[_ [b e]] (calculate-indices whole-sentence tokens)]
-            (inject-annotation! jc [TokenAnnotation b e]))
-         (.process tagger jc) jc))))
+(def sample "All plants need light and water to grow!")
+(defn hmm-postag
+ "A HMM POS-tagger capable of working not only with bigrams(n=2) but also trigrams(n=3).
+ The 3rd overload is the important one. It expects the path to the model you want to use and a map from sentences (String) to tokens (seq of Strings).
+ If you don't have the tokens for the sentences simply pass nil or an empty seq and UIMA's basic WhiteSpaceTokenizer will be used to create the tokens.
+ Theoretically you can mix non-empty token-seqs with  empty ones in the same map - however if that is the case, the tokens that were supplied will be ignored
+ only to be re-tokenized by the WhiteSpaceTokenizer. Therefore, it is not suggested that you do that. In fact, it not suggested to use the WhiteSpaceTokenizer 
+ for any serious work at all. In addition, you can also pass an extra key :n with value 2 or 3, to specify whether you want bigram or trigram modelling.  
+ The other 2 overloads are there to simply deal with a single sentence."
+([path-to-model whole-sentence tokens n]  
+  (hmm-postag path-to-model {whole-sentence tokens :n n}))  
+([path-to-model whole-sentence tokens] 
+  (hmm-postag path-to-model whole-sentence tokens 3)) 
+([path-to-model sentence-token-map]
+  (let [config {"NGRAM_SIZE" (int (or (:n sentence-token-map) 3))
+                "ModelFile"  path-to-model}
+        proper-map  (dissoc sentence-token-map :n)       ;;remove the [:n x] entry as it will interfere...
+        need-aggregate? (some empty? (vals proper-map))  ;;...here
+        tagger (if need-aggregate?
+                 (produce :analysis-engine (-> "HmmTaggerAggregate.xml" resource xml-resource) config)
+                 (produce :analysis-engine (-> "HmmTagger.xml" resource xml-resource) config))       
+        jc (jcas tagger) ;;create a JCas from the tagger who knows about the annotation types
+        pos-tag (fn [^String s ^JCas jc]
+                    (.setDocumentText jc s)
+                    (.process tagger jc) 
+                      (mapv (fn [^TokenAnnotation ta] (.getPosTag ta)) 
+                        (select-annotations jc TokenAnnotation 0 (count s))))]
+ (if need-aggregate? 
+  (reduce-kv 
+    (fn [init sentence tokens]
+     (conj init (pos-tag sentence jc))) [] proper-map)        
+  (reduce-kv 
+    (fn [init sentence tokens] 
+     (conj init (do (inject-annotation! jc [SentenceAnnotation 0 (count sentence)])
+                    (doseq [[_ [b e]] (calculate-indices sentence tokens)]
+                      (inject-annotation! jc [TokenAnnotation b e])) 
+                  (pos-tag sentence jc))))
+   [] proper-map)))) )
+
+(def postag-brown (partial hmm-postag "/home/sorted/clooJWorkspace/hotel-nlp/resources/pretrained_models/BrownModel.dat"))
+
+
+(defn load-model [^String filename]
+  (HMMTagger/get_model filename)) 
+
+(def my-corpus-reader
+ (reify CorpusReader
+  (^java.util.List read_corpus [_ ^String filename ^MappingInterface mapi]  ;;mapi can be nil if we don't want any mapping
+    (let [ppairs (map #(clojure.string/split % #"/") 
+                    (clojure.string/split (slurp filename) #"\n"))]
+  (doall (for [[token tag] ppairs]
+            (Token. token tag))))) ) )
+
+
+ #_(defn map->properties 
+  ([property-value-map]
+    (reduce-kv 
+      #(doto %1 (.setProperty %2 %3))
+     (java.util.Properties.) property-value-map))
+  ([] (map->properties {"MODEL_FILE" ""
+                        ;"DO_MAPPING" "true"
+                        ;"MAPPING" ""
+                        "FILE" "EXAMPLE.dat"
+                        "CORPUS_READER"  (-> my-corpus-reader class .getName)
+                        "GOLD_STANDARD" ""
+                        "N" "3"})))
 
 (comment
-
-
-
-
 
 (defn extend-uima []
  (extend-type org.apache.uima.analysis_component.JCasAnnotator_ImplBase 
@@ -221,7 +252,7 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
 (load-file "src/hotel_nlp/externals/uima.clj")
 (use 'hotel_nlp.externals.uima)
-(require '[hotel_nlp.helper :as help])
+;(require '[hotel_nlp.helper :as help])
 (def my-tokenizer #(hotel_nlp.concretions.artefacts/reg-tok %)) ;this artefact can act as a fn but is not of type IFn so we need to wrap it
 (defn extractor [t context] (.getDocumentText t))
 (defn post-fn [jc res original-input]  
@@ -241,8 +272,40 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
  (select-annotations jc Annotation 0 (count sample))
 
- ;---------   
+ ;--------- 
+
+
+
+
+
+(.init
+ (ModelGeneration. 
+   (.read_corpus my-corpus-reader "/home/sorted/clooJWorkspace/hotel-nlp/resources/corpora-train/BROWN-NLTK/nltk_brown_pos.txt" nil) 
+   "brown-partial-model.dat"))
+
+
+;(.newInstance (Class/forName (class my-corpus-reader) true dynamic-classloader))
+
+
+(defrecord UIMA-HMMTagger [^CorpusReader corpus-reader]   
+IProbabilistic
+(observe [_  tagged-corpus out-file] 
+  (.init
+   (ModelGeneration. 
+     (.read_corpus corpus-reader tagged-corpus nil)  out-file)))
+IModel                                        
+ (predict [_ model sentence-tokens-map]
+  (hmm-postag model sentence-tokens-map))
+IComponent  
+(run [this tokens]
+ (let [ps (-> this meta :model-file)]
+  (if (help/two-d? tokens)  
+   (map (partial predict this ps)  tokens)
+   (predict this ps tokens))) ) 
+(link [this pos other] 
+ (Workflow. (help/link this pos other))) ) ;;construct and pass the map containing the vectors instead
 
  
-
+;"home/sorted/clooJWorkspace/hotel_nlp/resources/corpora-train/BROWN-NLTK/nltk_brown_pos.txt" 
+(.init (ModelGeneration. (.read_corpus my-corpus-reader (.getPath (resource "corpora-train/BROWN-NLTK/nltk_brown_pos.txt")) nil)  "EXAMPLE.dat"))
 )
