@@ -421,10 +421,19 @@ ordering."
           `(with-resources ~more ~close-fn ~@body)
           `(do ~@body))
     (finally
-      (~close-fn ~x)))))) 
+      (~close-fn ~x))))))
+
+(defn map->properties "Converts a Map<String,String> to a java.util.Properties object."
+  [property-value-map]
+  {:pre  [(every? #(every? string? %) property-value-map)]} 
+    (reduce-kv 
+       (fn [^java.util.Properties p k v] 
+         (doto p (.setProperty  k v)))
+     (java.util.Properties.) property-value-map))
+  
 
 (defn map-difference 
-  "Comapres the 2 given maps and returns a map of their difference." 
+  "Compares the 2 given maps and returns a map of their difference." 
   [m1 m2]
   (let [ks1 (set (keys m1))
         ks2 (set (keys m2))
@@ -482,12 +491,8 @@ ordering."
       noun-phrases (NP-extractor chunks)
       with-parens (filter #(some #{"(" ")"} %) noun-phrases)
       remaining (map (fn [xs] 
-                      (remove #(or (some #{"the"} %) 
-                                  (some #{"a"} %) 
-                                  (some #{"and"} %)
-                                  (some #{"this"} %)
-                                  (some #{"that"} %)) xs)) with-parens)]
-      remaining))
+                      (remove #(some #{"the" "that" "a" "and" "this"} %) xs)) with-parens)]
+      remaining)
 
 ;;EXAMPLE FOLLOWS FOR OPENNLP-java
 #_(fn [sentence] ;;the chunk-fn
