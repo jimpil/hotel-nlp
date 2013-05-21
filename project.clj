@@ -14,8 +14,8 @@
                  [edu.stanford.nlp/stanford-corenlp "1.3.4"] 
                  [edu.stanford.nlp/stanford-corenlp "1.3.4" :classifier "models"]
                 ; [edu.stanford.nlp/stanford-corenlp-models "1.3.4-models"]
-                 [org.apache.opennlp/opennlp-maxent "3.0.3-SNAPSHOT"]
-                 [experiment/experiment "1.5.3"] ;OPENNLP HACKED
+                 ;[org.apache.opennlp/opennlp-maxent "3.0.3-SNAPSHOT"]
+                ; [experiment/experiment "1.5.3"] ;OPENNLP HACKED
                  [clojure-opennlp "0.2.0" :exclusions [[org.apache.opennlp/opennlp-tools]]]
                  [net.sf.jwordnet/jwnl "1.4_rc3"] ;latest wordnet
                  [uk.ac.gate/gate-core "7.1" :exclusions [[org.springframework/spring-beans]]]
@@ -28,6 +28,7 @@
                  [org.uimafit/uimafit "1.4.0"] ;;stay away from xml descriptors
                  ;[print-foo "0.3.2"]
                  [net.sf.jgrapht/jgrapht "0.8.3"]
+                 [org.flatland/ordered "1.5.1"]
                  ]
   :jvm-opts ["-Xmx2g" "-server"  ;;ideally need 3GB for stanford-corenlp
              "-XX:+OptimizeStringConcat" 
