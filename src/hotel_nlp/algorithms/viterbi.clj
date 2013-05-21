@@ -12,10 +12,11 @@
         "Number of observations: " (count (:observations this)) "\n"
         "Init probs: "     (:init-probs this) "\n"
         "Emission probs: " (:emission-probs this) "\n"
-        "Transitions probs: " (:state-transitions this))))
+        "Transitions probs: " (:state-transitions this)))) 
         
 (defrecord TokenTagPair [token tag]) 
 ;(def ^:dynamic *n* 2)                                           
+
  
 (defn make-hmm 
 ([states obs init-probs emission-probs state-transitions]
