@@ -11,12 +11,14 @@ public final class RelationEdge<V> extends DefaultEdge {
         vertex2 = v2;
         this.label = label;
      }
-
-     public V getV1() {
+     
+     @Override
+     public V getSource() {
         return vertex1;
      }
-
-    public V getV2() {
+     
+    @Override
+    public V getTarget() {
         return vertex2;
     }
     
