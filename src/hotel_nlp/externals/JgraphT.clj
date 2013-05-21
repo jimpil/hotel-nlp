@@ -21,6 +21,7 @@
     (add-edge! g coords)) g)
 
 (def dummy ["These" "plants" "shielded" "the" "face" "of" "the" "bank"])
+;(def dummy2 ["The" "bioavailability" "of" "oral" "midazolam" "was" "significantly" (P less than 0.05) higher in patients than controls (76% vs. 38%)."])
 (def G (SimpleDirectedGraph. RelationEdge))
 (apply add-vertices! G dummy)
 #_(-> dummy 
@@ -87,15 +88,22 @@
 ([^java.util.Map M] 
   (map->graph M (SimpleDirectedGraph. RelationEdge))) )
 
+(defn recognised? [^String s]
+  (re-find #"midazolam|bioavailability|\d+%?|[0-9]{1}(.[0-9]{1,3})?" s))
+
 (defn walk-graph 
 ([^org.jgrapht.Graph G] 
   (walk-graph G (.getTarget (some #(when (= "ROOT" (str %)) %) (.edgeSet G)))))  
 ([^org.jgrapht.Graph G ^String start-vertex-name]
    (let [start (some #(when (= start-vertex-name %) %) (.vertexSet G))
+         all-edges (.edgeSet G)
          edges-from-start (.edgesOf G start)] 
-    (doseq [e edges-from-start ] 
-      (println (.getSource e) (str e) (.getTarget e)))))
+    (for [e all-edges :when (or (recognised? (.getSource e)) 
+                                (recognised? (.getTarget e))
+                                (= start (.getSource e)))] 
+      [(.getSource e) (str e) (.getTarget e)] #_(walk-graph G (.getSource e)))))
 )
+
 
  
 
