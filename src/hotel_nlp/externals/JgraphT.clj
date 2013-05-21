@@ -1,6 +1,7 @@
 (ns hotel_nlp.externals.JgraphT
-  (:import [org.jgrapht.graph SimpleDirectedGraph DirectedMultigraph DefaultEdge ClassBasedEdgeFactory]
-           [hotel_nlp.externals RelationEdge]))
+  (:require [flatland.ordered.set :refer [ordered-set]])
+  (:import  [org.jgrapht.graph SimpleDirectedGraph DirectedMultigraph DefaultEdge ClassBasedEdgeFactory]
+            [hotel_nlp.externals RelationEdge]))
 
 
 (defn add-vertices! "Add the given vertice-labels [vs] to the graph g."
@@ -11,16 +12,17 @@
 (defn add-edge! [^org.jgrapht.Graph g [source target e]]
   (if (nil? e)
      (.addEdge g source target)
-     (.addEdge g source target e)))
+     (.addEdge g source target e)) g)
 
 (defn add-edges! 
   "Add the given edges [es] to the graph g. Each edge should be a seq with at least 2 elements [from, start]."
   [^org.jgrapht.Graph g & es]
-  (doseq [[from to e] es]
-    (if (nil? e) (.addEdge g from to)
-      (.addEdge g from to e))) g)
+  (doseq [[from to e :as coords] es]  
+    (add-edge! g coords)) g)
 
-(def dummy (SimpleDirectedGraph. RelationEdge))
+(def dummy ["These" "plants" "shielded" "the" "face" "of" "the" "bank"])
+(def G (SimpleDirectedGraph. RelationEdge))
+(apply add-vertices! G dummy)
 #_(-> dummy 
     (add-vertices! "drugA" "drugB" "drugC" "and" "inhibits") 
     (add-edges! ["inhibits" "drugA"] ["drugB" "and"]))
@@ -44,19 +46,21 @@
 ;But Sarah doesn't really like James
 (add-edge! multiG [sarah james (RelationEdge. sarah james enemy)])      
   (doseq [e (.edgeSet multiG)]
-   (when (= (str e) "friend") (println (.getV1 e) "likes" (.getV2 e))) 
-   (when (= (str e) "enemy")  (println (.getV1 e) "hates" (.getV2 e))))) )
+   (when (= (str e) "friend") (println (.getSource e) "likes" (.getTarget e))) 
+   (when (= (str e) "enemy")  (println (.getSource e) "hates" (.getTarget e))))) )
 
 (defn enju->map [^String fname]   
 (with-open [rdr (clojure.java.io/reader fname)]
+(-> 
 (reduce 
   (fn [m s]
+   (if (seq s)
     (let [[predicate predicate-base predicate-POS predicate-base-POS predicate-pos predicate-type relation-label 
            argument argument-base argument-POS argument-base-POS  argument-pos :as cols] 
             (clojure.string/split s #"\t")
             predicate-word (get cols 0) 
             argument-word (get cols 7)]
-   (assoc m #{predicate-word argument-word} 
+   (assoc m (ordered-set predicate-word argument-word)
              {:predicate predicate
               :predicate-base predicate-base 
               :predicate-POS  predicate-POS 
@@ -68,7 +72,35 @@
               :argument-base argument-base
               :argument-POS argument-POS
               :argument-base-POS argument-base-POS 
-              :argument-pos argument-pos}))) 
-  {} (line-seq rdr))) )
+              :argument-pos argument-pos})) m)) 
+  {} (line-seq rdr)) 
+(dissoc (ordered-set nil "Empty line")))) ) 
+
+(defn map->graph 
+([^java.util.Map M ^org.jgrapht.Graph G]
+ (reduce-kv  
+   (fn [g SET v] 
+     (let [pred (first SET) arg (second SET)]
+      (add-vertices! g pred arg) 
+      (add-edge! g [pred arg (RelationEdge. pred arg (:relation-label v))])))
+  G M))
+([^java.util.Map M] 
+  (map->graph M (SimpleDirectedGraph. RelationEdge))) )
+
+(defn walk-graph 
+([^org.jgrapht.Graph G] 
+  (walk-graph G (.getTarget (some #(when (= "ROOT" (str %)) %) (.edgeSet G)))))  
+([^org.jgrapht.Graph G ^String start-vertex-name]
+   (let [start (some #(when (= start-vertex-name %) %) (.vertexSet G))
+         edges-from-start (.edgesOf G start)] 
+    (doseq [e edges-from-start ] 
+      (println (.getSource e) (str e) (.getTarget e)))))
+)
+
+ 
+
+
+
+
 
 
