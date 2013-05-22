@@ -89,7 +89,7 @@
   (map->graph M (SimpleDirectedGraph. RelationEdge))) )
 
 (defn recognised? [^String s]
-  (re-find #"midazolam|bioavailability|\d+%?|[0-9]{1}(.[0-9]{1,3})?" s))
+  (re-find #"concentrations?|midazolam|didanosine|tenofovir|bioavailability|[0-9]{1,2}.([0-9]{1,4})?|(%|per\s?cent)" s))
 
 (defn walk-graph 
 ([^org.jgrapht.Graph G] 
@@ -100,7 +100,8 @@
          edges-from-start (.edgesOf G start)] 
     (for [e all-edges :when (or (recognised? (.getSource e)) 
                                 (recognised? (.getTarget e))
-                                (= start (.getSource e)))] 
+                                (= start (.getSource e))
+                                (= start (.getTarget e)))] 
       [(.getSource e) (str e) (.getTarget e)] #_(walk-graph G (.getSource e)))))
 )
 
