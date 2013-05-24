@@ -306,14 +306,14 @@ ordering."
 (defn pdf->txt [^String src & {:keys [s-page e-page dest]  
                                :or {s-page 1 dest (str (first (stu/split src #"\.")) ".txt")}}]
  {:pre [(< 0 s-page) (.endsWith src ".pdf")]} 
- (print "     \u001B[31mYOU ARE PERFORMING A POTENTIALLY ILLEGAL OPERATION...\n\t PROCEED AT YOUR OWN RISK!!!\u001B[m \n Proceed? (y/n):")
+ (println "     \u001B[31mYOU ARE PERFORMING A POTENTIALLY ILLEGAL OPERATION...\n\t PROCEED AT YOUR OWN RISK!!!\u001B[m Proceed? (y/n):")
  (when  (-> *in*
               (java.util.Scanner.)
               .next
               (.charAt 0)
               (= \y))
  (with-open [pd (PDDocument/load (File. src))
-             wr ^java.io.BufferedWriter (io/writer dest)]
+             wr (io/writer dest)]
   (let [page-no (.getNumberOfPages pd)
         stripper (doto (PDFTextStripper.)
                      (.setStartPage s-page)
@@ -332,7 +332,7 @@ ordering."
  (case pos 
    :before  (if (map? others) (vector c1 others) (apply vector c1 others)) 
    :after   (if (map? others) (vector others c1) (apply vector others [c1]))
- "pos can be either :before or :after")))
+ "'pos' can be either :before or :after")))
    
 (defn pool-map 
 "A saner, more disciplined version of pmap. 
@@ -492,7 +492,7 @@ ordering."
       with-parens (filter #(some #{"(" ")"} %) noun-phrases)
       remaining (map (fn [xs] 
                       (remove #(some #{"the" "that" "a" "and" "this"} %) xs)) with-parens)]
-      remaining)
+      remaining))
 
 ;;EXAMPLE FOLLOWS FOR OPENNLP-java
 #_(fn [sentence] ;;the chunk-fn
