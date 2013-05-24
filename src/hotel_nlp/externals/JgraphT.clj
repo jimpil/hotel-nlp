@@ -1,6 +1,7 @@
 (ns hotel_nlp.externals.JgraphT
   (:require [flatland.ordered.set :refer [ordered-set]])
   (:import  [org.jgrapht.graph SimpleDirectedGraph DirectedMultigraph DefaultEdge ClassBasedEdgeFactory]
+            [org.jgrapht Graph]
             [hotel_nlp.externals RelationEdge]))
 
 
@@ -9,16 +10,19 @@
   (doseq [v vs]
     (.addVertex g v)) g)
 
-(defn add-edge! [^org.jgrapht.Graph g [source target e]]
-  (if (nil? e)
-     (.addEdge g source target)
-     (.addEdge g source target e)) g)
+(defn add-edge! 
+([^Graph g [source target] ^DefaultEdge e]
+   (.addEdge g source target e) g)
+([^Graph g [source target]] 
+   (.addEdge g source target) g) )     
 
 (defn add-edges! 
   "Add the given edges [es] to the graph g. Each edge should be a seq with at least 2 elements [from, start]."
-  [^org.jgrapht.Graph g & es]
-  (doseq [[from to e :as coords] es]  
-    (add-edge! g coords)) g)
+  [^Graph g & es]
+  (doseq [[from to e] es]
+    (if (nil? e) 
+      (add-edge! g [from to])
+      (add-edge! g [from to] e))) g)
 
 (def dummy ["These" "plants" "shielded" "the" "face" "of" "the" "bank"])
 ;(def dummy2 ["The" "bioavailability" "of" "oral" "midazolam" "was" "significantly" (P less than 0.05) higher in patients than controls (76% vs. 38%)."])
@@ -58,10 +62,8 @@
    (if (seq s)
     (let [[predicate predicate-base predicate-POS predicate-base-POS predicate-pos predicate-type relation-label 
            argument argument-base argument-POS argument-base-POS  argument-pos :as cols] 
-            (clojure.string/split s #"\t")
-            predicate-word (get cols 0) 
-            argument-word (get cols 7)]
-   (assoc m (ordered-set predicate-word argument-word)
+            (clojure.string/split s #"\t")]
+   (assoc m (ordered-set predicate argument)
              {:predicate predicate
               :predicate-base predicate-base 
               :predicate-POS  predicate-POS 
@@ -78,12 +80,12 @@
 (dissoc (ordered-set nil "Empty line")))) ) 
 
 (defn map->graph 
-([^java.util.Map M ^org.jgrapht.Graph G]
+([^java.util.Map M ^Graph G]
  (reduce-kv  
-   (fn [g SET v] 
+   (fn [^Graph g SET v] 
      (let [pred (first SET) arg (second SET)]
       (add-vertices! g pred arg) 
-      (add-edge! g [pred arg (RelationEdge. pred arg (:relation-label v))])))
+      (add-edge! g [pred arg] (RelationEdge. pred arg (:relation-label v)))))
   G M))
 ([^java.util.Map M] 
   (map->graph M (SimpleDirectedGraph. RelationEdge))) )
@@ -92,18 +94,18 @@
   (re-find #"concentrations?|midazolam|didanosine|tenofovir|bioavailability|[0-9]{1,2}.([0-9]{1,4})?|(%|per\s?cent)" s))
 
 (defn walk-graph 
-([^org.jgrapht.Graph G] 
+([^Graph G] 
   (walk-graph G (.getTarget (some #(when (= "ROOT" (str %)) %) (.edgeSet G)))))  
 ([^org.jgrapht.Graph G ^String start-vertex-name]
    (let [start (some #(when (= start-vertex-name %) %) (.vertexSet G))
          all-edges (.edgeSet G)
-         edges-from-start (.edgesOf G start)] 
+         edges-from-start (.edgesOf G start)
+         juxted-fn (juxt #(.getSource %) str #(.getTarget %))] 
     (for [e all-edges :when (or (recognised? (.getSource e)) 
                                 (recognised? (.getTarget e))
                                 (= start (.getSource e))
-                                (= start (.getTarget e)))] 
-      [(.getSource e) (str e) (.getTarget e)] #_(walk-graph G (.getSource e)))))
-)
+                                (= start (.getTarget e)))]   
+      (juxted-fn e)))) )
 
 
  
