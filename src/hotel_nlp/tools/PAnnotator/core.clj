@@ -107,10 +107,10 @@
 (let [data-seq (-> data-s slurp read-string)
       fitem (first data-seq)]
 (if (sequential? fitem) data-s ;;the usual happens
-  (let [directory (io/file fitem) ;;the whole directory
+  (let [^File directory (io/file fitem) ;;the whole directory
         f-seq (if-let [ff ffilter] 
-                (.listFiles ^File directory ^FileFilter (ut/file-filter ff)) 
-                (.listFiles ^File directory))
+                (.listFiles directory (ut/file-filter ff)) 
+                (.listFiles directory))
         f-seq-names (for [f f-seq :when #(.isFile ^File f)] (.getPath ^File f))]
  (reset! global-dic (ut/unite (mapv ut/normaliser (next data-seq))))     
  (mapv #(vec (concat (list %) (next data-seq))) f-seq-names)))) ) ;;build the new 2d vector        
@@ -152,10 +152,7 @@
                (format-fn entity-type name1)) 
              (catch PatternSyntaxException _ 
              (do (println (str "--- COULD NOT BE PROCESSED! --->" name1)) text)))
-             (next names)) [file-name text])) 
-             
-            
-   )) 
+             (next names)) [file-name text]))  )) 
 ([{:keys [files+dics entity-type target target-folder consumer-lib strategy write-mode file-filter segmenter]
    :or {entity-type "default" 
         target "target-file.txt"
@@ -222,7 +219,7 @@
       ["-allign" "--allignment" "Perform local allignement (Smith-Waterman) between 2 sequences."]
       ["-dist" "--edit-distance" "Calculate the edit-distance (Levenshtein) between 2 words."]
       ["-rpdf"  "--ripdf" "Extract the contents from a pdf file and write them to a plain txt file."]
-      ["-dname" "--drugname" "Generate a finite list of randomly assembled name(s) that look like drugs (orthographically)." :default 10]
+      ["-dname" "--drugname" "Generate a finite list (you provide how many) of randomly assembled name(s) that look like drugs (orthographically)."]
       )]
     (when (:help opts)
       (println HELP_MESSAGE "\n\n" banner)
@@ -230,12 +227,10 @@
     (when-let [source (:ripdf opts)]
       (pdf->txt source)
       (System/exit 0))
-    (when-let [n (try (Integer/parseInt (:drugname opts))
-                 (catch NumberFormatException nfe 
-                 (do (println "\u001B[31mMake sure to specify a limit otherwise the list will be infinite!\u001B[m") (System/exit 1)))
-                 (catch Exception ex nil))] 
-     (println (apply randrugs (or n 1) (drop 2 args)))
-      (System/exit 0))    
+    (when-let [how-many  (:drugname opts)] 
+      (let [n (Integer/parseInt how-many)]
+        (println (apply randrugs n (drop 2 args)))
+        (System/exit 0)))  
     (when (:allignment opts)
       (if (> 3 (count args))
        (do (println "Less than 2 arguments detected! Please provide 2 sequences to allign...")
