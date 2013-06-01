@@ -7,8 +7,10 @@
               [hotel_nlp.algorithms.levenshtein :as lev]
               [hotel_nlp.algorithms.ngrams :refer [ngrams*]]
     )
+    (:import [hotel_nlp.helper Workflow])
 )
 
+(set! *warn-on-reflection* true)
 
 ;;some preparation first to make our life easier later on
 (extend-type String
@@ -17,10 +19,10 @@
   ([this] (stem this "english"))
   ([this lang]
      (let [stemmer (help/porter-stemmer lang)]
-        (doto stemmer 
-                (.setCurrent this) 
-                (.stem)) 
-          (.getCurrent stemmer))))
+      (.getCurrent
+         (doto stemmer 
+            (.setCurrent this) 
+            (.stem))))))
  (getRoot [this _ dic] (get dic this "NOT-FOUND!"))
  IDistance
  (getDistance
@@ -64,42 +66,6 @@
   
   
 ;------------------------------------------------------------------------------------------------
-(declare addC removeC replaceC)
-  
-(defrecord Workflow [components] ;;a seq of components - the workflow can itself be a component
- IWorkflow
- (getComponents [this] components) ;;just return all components
- (appendComponent [this c]   (conj (vec components) c))
- (addComponent [this pos c]  (addC components pos c))
- (removeComponent [this pos] (removeC components pos))
- (replaceComponent [this pos replacement] (replaceC components pos replacement))
- (deploy [_ text intermediates?] 
-    ((if intermediates? reductions reduce) 
-      (fn [init c] (run c init)) text components))
- (deploy [this text] (deploy this text false))
- ;(deploy [this] (deploy this))                         
-IComponent
- (link [this pos other]
-   (Workflow. (help/link this pos other)))
- ;(run [this] (deploy this))   
- (run [this text] (deploy this text)) ;;(reduce #(run  %2 %) text components))  
- ;(run [this text & more] (deploy this text (first more))) 
-clojure.lang.IFn  ;;can act as an fn
-  (invoke [this arg]
-    (deploy this arg))
-  (applyTo [this args]
-    (apply deploy this args)) ) 
-    
-(defn- addC [cs pos c]
-  (Workflow. (help/insert-at cs pos c))) 
-  
-(defn- removeC [cs pos]
-  (Workflow. (help/remove-at cs pos)))
-  
-(defn- replaceC [cs pos c]
-{:pre [(pos? pos) (<= pos (count cs))]} 
-  (Workflow. (assoc (vec cs) (dec pos) c)))       
-
 ;----------------------------------<REGEX-MODELS>-----------------------------------------------------
 (defrecord RE-Segmenter [regex input output] 
 ISegmenter
@@ -222,7 +188,7 @@ IComponent
 (run [this args] 
   (apply getDistance this args)) ;;args must be a seq
 (link [this pos other] 
- (Workflow. (help/link this pos other)))
+ (Workflow. (help/link* this pos other)))
 clojure.lang.IFn  ;;can act as an fn
   (invoke [this arg1 arg2]
     (getDistance this arg1 arg2))
@@ -295,7 +261,7 @@ IComponent
    (map (partial predict this ps)  tokens)
    (predict this ps tokens))) ) 
 (link [this pos other] 
- (Workflow. (help/link this pos other))) ) ;;construct and pass the map containing the vectors instead
+ (Workflow. (help/link* this pos other))) ) ;;construct and pass the map containing the vectors instead
  
 ;----------------------------------------------------------------------------------------------------------
 
