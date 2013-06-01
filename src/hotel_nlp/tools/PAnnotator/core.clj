@@ -78,7 +78,7 @@
   
 (defn- mapping-fn
 "Returns a fn that will take care mapping with this stratefy. 
- Supported options include :serial, :lazy, :lazy-parallel, :pool-parallel, :map-reduce & :fork-join." 
+ Supported options include :serial, :lazy, :lazy-parallel, :pool-parallel, :map-reduce, :fork-join & fork-joinHP(high-performance)." 
 [strategy]
 (case strategy
   :serial mapv
@@ -86,7 +86,9 @@
   :lazy-parallel pmap
   :pool-parallel ut/pool-map
   :map-reduce    ut/mapr
-  :fork-join     ut/rmap))
+  :fork-join     ut/rmap
+  :fork-joinHP   ut/rhmap
+ (throw (IllegalArgumentException. "Mapping strategy not recognised!"))))
   
   
 (defn- file-write-mode 
@@ -154,9 +156,9 @@
              (do (println (str "--- COULD NOT BE PROCESSED! --->" name1)) text)))
              (next names)) [file-name text]))  )) 
 ([{:keys [files+dics entity-type target target-folder consumer-lib strategy write-mode file-filter segmenter]
-   :or {entity-type "default" 
+   :or {entity-type "DRUG" 
         target "target-file.txt"
-        target-folder "ANNOTATIONS"
+        target-folder "ANNOTATION_TARGET"
         consumer-lib "openNLP-NER"
         strategy   "lazy-parallel"
         write-mode "merge-all"
@@ -175,6 +177,11 @@
        wmd  (if (= write-mode "merge-all") (constantly target) identity)]      
   (doseq [[f a] annotations] 
     (wfn (wmd f) a)))) )
+    
+#_(cond-> f+ds 
+  (or (string? f+ds) 
+      (ut/url? f+ds)) ut/file->data
+  (vector? f+ds)      identity  )     
    
       
 (def -process annotate)
@@ -259,7 +266,7 @@
       (-process {:entity-type  (:entity-type opts)  
                  :target       (:target opts)
                  :target-folder (:target-folder opts)
-                 :files+dics   (:data opts)
+                 :files+dics    (:data opts)
                  :file-filter  (:file-filter opts)
                  :strategy     (:parallelism opts)
                  :write-mode   (:write-mode opts)
