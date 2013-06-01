@@ -8,9 +8,10 @@
         [clojure.xml           :as xml]
         [clojure.string        :as stu]
         [clojure.java.io       :as io]
+        [clojure.edn           :as edn]
         [clojure.core.reducers :as r]
         [clojure.test :refer [with-test is run-tests]]
-        [hotel_nlp.protocols   :as pro]
+        [hotel_nlp.protocols   :refer :all]
      )
    (:import [java.io File FileFilter StringReader]
             [java.util.regex Pattern PatternSyntaxException]
@@ -21,19 +22,58 @@
             HungarianStemmer ItalianStemmer KpStemmer LovinsStemmer NorwegianStemmer PorterStemmer PortugueseStemmer RomanianStemmer
             RussianStemmer SpanishStemmer SwedishStemmer TurkishStemmer])  
 )
+(set! *warn-on-reflection* true)
+(def cpu-no "Tne number of processors on this machine." (.. Runtime getRuntime availableProcessors))
+
+(declare addC removeC replaceC insert-at remove-at link*)
+  
+(defrecord Workflow [components] ;;a seq of components - the workflow can itself be a component
+ IWorkflow
+ (getComponents [this] components) ;;just return all components
+ (appendComponent [this c]   (conj (vec components) c))
+ (addComponent [this pos c]  (addC components pos c))
+ (removeComponent [this pos] (removeC components pos))
+ (replaceComponent [this pos replacement] (replaceC components pos replacement))
+ (deploy [_ text intermediates?] 
+    ((if intermediates? reductions reduce) 
+      (fn [init c] (run c init)) text components))
+ (deploy [this text] (deploy this text false))
+ ;(deploy [this] (deploy this))                         
+IComponent
+ (link [this pos other]
+   (Workflow. (link* this pos other)))
+ ;(run [this] (deploy this))   
+ (run [this text] (deploy this text)) ;;(reduce #(run  %2 %) text components))  
+ ;(run [this text & more] (deploy this text (first more))) 
+clojure.lang.IFn  ;;can act as an fn
+  (invoke [this arg]
+    (deploy this arg))
+  (applyTo [this args]
+    (apply deploy this args)) ) 
+    
+(defn- addC [cs pos c]
+  (Workflow. (insert-at cs pos c))) 
+  
+(defn- removeC [cs pos]
+  (Workflow. (remove-at cs pos)))
+  
+(defn- replaceC [cs pos c]
+{:pre [(pos? pos) (<= pos (count cs))]} 
+  (Workflow. (assoc (vec cs) (dec pos) c))) 
+
 
 (definline testables 
 "Returns all the vars from the given namespace with the :test key present in their meta-data." 
  [nspace]
- `(for [[_# v#] (ns-map ~nspace) :when (:test (meta v#))] v#))
+ `(for [[_# v#] (ns-map ~nspace) :when (-> v# meta :test)] v#))  
 
-(defmacro in?
+(definline in?
   "Returns the value of x if coll contains it, otherwise nil."
   [coll x] 
  `(some #{~x} ~coll))
 
-(defmacro linkage [obj pos other]
-`(hotel_nlp.concretions.models.Workflow. (hotel_nlp.helper/link ~obj ~pos ~other)))  
+(definline linkage [obj pos other]
+`(hotel_nlp.helper.Workflow. (hotel_nlp.helper/link* ~obj ~pos ~other)))  
  
  ;(run-tests)
 
@@ -156,7 +196,7 @@ only when there's a non-map at a particular level.
 (case lang
 	"danish"    (DanishStemmer.)  "dutch"   (DutchStemmer.)   "english"   (EnglishStemmer.) "finnish"   (FinnishStemmer.) 
 	"french"    (FrenchStemmer.)  "german2" (German2Stemmer.) "german"    (GermanStemmer.)  "hungarian" (HungarianStemmer.)
-  "italian"   (ItalianStemmer.) "kp"      (KpStemmer.)      "lovins"    (LovinsStemmer.)  "norwegian" (NorwegianStemmer.) 
+        "italian"   (ItalianStemmer.) "kp"      (KpStemmer.)      "lovins"    (LovinsStemmer.)  "norwegian" (NorwegianStemmer.) 
 	"porter"    (PorterStemmer.)  "postugese" (PortugueseStemmer.) "romanian"  (RomanianStemmer.) "russian" (RussianStemmer.) 
 	"spanish"   (SpanishStemmer.) "swedish"   (SwedishStemmer.)    "turskish"  (TurkishStemmer.)
  (throw 
@@ -220,7 +260,7 @@ only when there's a non-map at a particular level.
 (defn dim-no 
 "Returns the number of dimensions for coll which must be a java.util.Collection or an array.." 
 [coll]
-(assert (instance? java.util.Collection (seq coll)) "Can only accept java.util.Collection")
+(assert (instance? java.util.Collection (seq coll)) "Can only accept seqables")
 (loop [i 1
       [f s & more] (try (seq coll) (catch Exception ex coll))]
   (if-not (instance? java.util.Collection (try (if (string? f) f (seq f)) 
@@ -327,8 +367,8 @@ ordering."
 ([string-seq] (join string-seq "\n"))
 ([string-seq ^String separator] (stu/join separator string-seq)))
 
-(defn link [c1 pos c2]
-(let [others (if (satisfies? pro/IWorkflow c2) (pro/getComponents c2) c2)]
+(defn link* [c1 pos c2]
+(let [others (if (satisfies? IWorkflow c2) (getComponents c2) c2)]
  (case pos 
    :before  (if (map? others) (vector c1 others) (apply vector c1 others)) 
    :after   (if (map? others) (vector others c1) (apply vector others [c1]))
@@ -346,7 +386,7 @@ ordering."
  (for [_ futures]  
    (.. pool take get)) ))
 ([f coll] 
-  (pool-map f coll (.. Runtime getRuntime availableProcessors))))   
+  (pool-map f coll (+ 2 cpu-no))))   
 
 
 (defn fold-into-vec [chunk coll]
@@ -355,17 +395,28 @@ ordering."
   (r/fold chunk (r/monoid into vector) conj coll))
 
 (defn rmap
-"A fork-join based mapping function that pours the results in a vector." 
-[f coll fj-chunk-size]
-(fold-into-vec fj-chunk-size (r/map f coll))) 
+"A fork-join based mapping function that uses vectors underneath." 
+([f coll fj-chunk-size]
+  (fold-into-vec fj-chunk-size (r/map f (vec coll))))
+([f coll] 
+  (rmap f coll (+ 2 cpu-no))) )  
+
+(defn rhmap
+"A high-performance, fork-join based mapping function that uses ArrayList underneath." 
+([f coll fj-chunk-size]
+  (r/fold fj-chunk-size r/cat r/append! (r/map f (vec coll))))
+([f coll] 
+  (rhmap f coll (+ 2 cpu-no))) )   
 
 (defn mapr
-"A pretty basic map-reduce style mapping function. Will partition the data according to p-size and assign a thread to each partition."  
+"A pretty basic map-reduce style mapping function. Will partition the data according to p-size and assign a future to each partition (per pmap)."  
 ([f coll p-size]
- (apply concat ;;concat the inner vectors that represent the partitions
-   (pmap (fn [p] (reduce #(conj % (f %2)) [] p))
-     (partition-all p-size coll))))
-([f coll] (mapr f coll 4)))                                                                    
+ (->> coll 
+    (partition-all p-size)
+    (pmap #(mapv f %) )  
+    (apply concat)) ) ;;concat the inner vectors that represent the partitions
+([f coll] 
+  (mapr f coll (+ 2 cpu-no))))                                                                    
 
 (defn create-folder! 
 "Creates a folder at the specified path." 
@@ -387,15 +438,14 @@ ordering."
   (re-find (re-pattern (str ".*" filter)) (.getName ^File f))))))
   
 (definline url? [x]
-`(if (instance? java.net.URL ~x) true false))   
+`(instance? java.net.URL ~x))   
   
 (defn file->data
-"Read the file f back on memory safely (as much as possible). 
+"Read the file f back on memory safely. 
  Contents of f should be a clojure data-structure. Not allowed to execute arbitrary code (per #=)." 
-[f]
+[^String fname]
 (io!
- (binding [*read-eval* false]
- (read-string (slurp f))))) 
+ (edn/read-string (slurp fname)))) 
  
 (defn space-out 
 "Given some text, find all tags (according to the tagging-scheme) that are not surrounded by spaces and put spaces around them." 
