@@ -509,11 +509,7 @@ ordering."
    `(-> ~coll next second)) 
 
  (definline fourth [coll]
-   `(-> ~coll next next second))  
-
-(defmacro do-print [form]
-  `(let [res# ~form]
-     (println res#) res#))                                                    
+   `(-> ~coll next next second))                                                     
    
 
 (defn abbreviations-simple 
