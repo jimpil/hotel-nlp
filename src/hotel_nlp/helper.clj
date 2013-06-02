@@ -396,25 +396,31 @@ ordering."
 
 (defn rmap
 "A fork-join based mapping function that uses vectors underneath." 
-([f coll fj-chunk-size]
-  (fold-into-vec fj-chunk-size (r/map f (vec coll))))
+([f coll fj-chunk-size shuffle?]
+  (fold-into-vec fj-chunk-size (r/map f (cond-> coll shuffle? shuffle (not shuffle?) vec))))
+([f coll fj-chunk-size] 
+  (rmap f coll fj-chunk-size fj-chunk-size false))
 ([f coll] 
-  (rmap f coll (+ 2 cpu-no))) )  
+  (rmap f coll (int (/ (count coll) cpu-no)))) )  
 
 (defn rhmap
 "A high-performance, fork-join based mapping function that uses ArrayList underneath." 
-([f coll fj-chunk-size]
-  (r/fold fj-chunk-size r/cat r/append! (r/map f (vec coll))))
+([f coll fj-chunk-size shuffle?]
+  (r/fold fj-chunk-size r/cat r/append! (r/map f (cond-> coll shuffle? shuffle (not shuffle?) vec))))
+([f coll fj-chunk-size] 
+  (rhmap f coll fj-chunk-size false))  
 ([f coll] 
-  (rhmap f coll (+ 2 cpu-no))) )   
+  (rhmap f coll (int (/ (count coll) cpu-no)))) )   
 
 (defn mapr
 "A pretty basic map-reduce style mapping function. Will partition the data according to p-size and assign a future to each partition (per pmap)."  
-([f coll p-size]
- (->> coll 
+([f coll p-size shuffle?]
+ (->> (cond-> coll shuffle? shuffle)
     (partition-all p-size)
     (pmap #(mapv f %) )  
     (apply concat)) ) ;;concat the inner vectors that represent the partitions
+([f coll p-size] 
+  (mapr f coll p-size false))    
 ([f coll] 
   (mapr f coll (+ 2 cpu-no))))                                                                    
 
