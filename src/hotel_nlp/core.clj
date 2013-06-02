@@ -1,10 +1,10 @@
 (ns hotel_nlp.core
    (:require  [hotel_nlp.protocols :refer :all]
               ;[hotel_nlp.externals.bindings :refer :all]
-              [hotel_nlp.concretions.models]
+             ; [hotel_nlp.concretions.models]
               [hotel_nlp.helper :as help]
    )
-   (:import [hotel_nlp.concretions.models Workflow])
+   (:import [hotel_nlp.helper Workflow])
 )
 
 
@@ -15,7 +15,7 @@
 (defn fn->component [f]
 (reify IComponent
  (link [this pos other]
-   (Workflow. (help/link this pos other))) 
+   (Workflow. (help/link* this pos other))) 
  (run [_ args] 
    (f args)))) 
 
@@ -34,7 +34,7 @@
  
 
 (defmacro defworkflow 
-"Defines a top-level Workflow with the specified name containing the given Components. Secodn argument can be a doc-string fro this workflow."  
+"Defines a top-level Workflow with the specified name containing the given Components. First element in components can be a doc-string for this workflow."  
 [name & components]
 (let [[doc & comps :as all] (eval (vec components)) 
        cs  (if (string? doc) [comps true] [all false])
