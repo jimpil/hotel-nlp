@@ -3,15 +3,15 @@
               [hotel_nlp.concretions.models :as models]
               [hotel_nlp.helper :as help]         
     )
-    (:import  [hotel_nlp.concretions.models Workflow]    
-              ;[opennlp.tools.namefind TokenNameFinder]
+    (:import  [hotel_nlp.helper Workflow]    
+              [opennlp.tools.namefind TokenNameFinder]
               [java.io FileInputStream]
               [opennlp.tools.util Span]
               [edu.stanford.nlp.pipeline Annotator AnnotationPipeline StanfordCoreNLP Annotation]
     )
     
 )
-
+(set! *warn-on-reflection* true)
 (def KNOWN-LIBRARIES [:opennlp :stanfordnlp-core :gimli :gate :lingpipe])
   
 #_(def RE-NER
@@ -35,7 +35,7 @@
 "Convert an array of Spans in to an array of Strings." 
  [^"[Lopennlp.tools.util.Span;" span-array 
   ^"[Ljava.lang.String;"        token-array]
- (Span/spansToStrings  span-array  token-array))
+ (seq (Span/spansToStrings span-array token-array)))
  
 (defn parse->string [topParses]
 (if (seq? topParses)  
@@ -60,14 +60,13 @@ IComponent
 (let [pf (or string-extractor (fn [spans _] spans))] ;;decide what fn to use up-front
  (if-not context
  (if (help/two-d? token-seq) 
- (map #(pf (.find this (into-array ^String %)) (into-array ^String %)) token-seq)
-  (let [^"[Ljava.lang.String;" tok-array (into-array ^String token-seq)] 
-      #(pf (.find this tok-array) tok-array)))
+ (map #(let [original (into-array ^String %)] (pf (.find this original) original)) token-seq)
+  (let [tok-array (into-array ^String token-seq)] 
+      (pf (.find this tok-array) tok-array)))
  (if (help/two-d? token-seq) 
- (map #(pf (.find this (into-array ^String %) context) (into-array ^String %)) token-seq)
+ (map #(let [original (into-array ^String %)] (pf (.find this original context) original)) token-seq)
    (let [tok-array (into-array ^String token-seq)] 
-      #(pf (.find this tok-array context) tok-array)))  
- ))) )
+      (pf (.find this tok-array context) tok-array)))))) )
 (link [this pos other] 
   (help/linkage this pos other)) ))
 ([] (extend-opennlp-ner nil)) ) 
@@ -109,8 +108,9 @@ IComponent
 ([this s] 
   (run this s false))
 ([this s offsets?]
-  (if offsets? (.sentDetectPos this s) ;;will return a Span[]
-               (.sentDetect this s)))) ;;will return a String[]
+  (case offsets?
+    true  (if (help/string-array? s) (map #(.sentPosDetect this %) s) (.sentPosDetect this s))  ;;will return a Span[]
+    false (if (help/string-array? s) (map #(.sentDetect this %)    s) (.sentDetect this s))))) ;;will return a String[]
 (link [this pos other] 
   (help/linkage this pos other)) )
 )
@@ -436,7 +436,7 @@ IWorkflow
 (appendComponent [this ^gate.ProcessingResource pr]  (.add this pr))
 ) )
 ;----------------------------------------------->GIMLI<----------------------------------------------------
-
+(comment
 (definline gimli-corpus [f e]
 `(pt.ua.tm.gimli.corpus.Corpus. ~f ~e))
 
@@ -460,6 +460,8 @@ IComponent
     (run this model)))) )
 IAnnotator
 (annotate [this model] (run this model)) )
+)
+
 )
  
 
