@@ -2,7 +2,7 @@
   (:require [clojure.pprint :refer [pprint]]
             ;[clojure.contrib.probabilities.finite-distributions :refer [normalize]]
             [hotel_nlp.algorithms.ngrams :refer [ngrams*]]
-            [hotel_nlp.helper   :refer [read-resource let-timed third fourth map-difference do-print]]))
+            [hotel_nlp.helper   :refer [read-resource let-timed third fourth map-difference]]))
  
 (defrecord HMM ;;example
 [states observations init-probs emission-probs state-transitions]
