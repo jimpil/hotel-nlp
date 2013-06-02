@@ -1,10 +1,11 @@
 (ns hotel_nlp.concretions.artefacts
    (:require  [hotel_nlp.helper :as help]
-   	          [hotel_nlp.concretions.regexes :as re]
+   	      [hotel_nlp.concretions.regexes :as re]
               [hotel_nlp.concretions.models]
    )
-   (:import [hotel_nlp.concretions.models RE-Tokenizer RE-Segmenter RE-Combiner RE-Abbrv PorterStemmer Workflow Ngrams LevenshteinDistance 
-                                      MapReduceMapper ForkJoinMapper PoolMapper SemiLazyMapper]
+   (:import [hotel_nlp.concretions.models RE-Tokenizer RE-Segmenter RE-Combiner RE-Abbrv PorterStemmer
+             Ngrams LevenshteinDistance MapReduceMapper ForkJoinMapper PoolMapper SemiLazyMapper]
+             [hotel_nlp.helper Workflow]
    
    )
 )
