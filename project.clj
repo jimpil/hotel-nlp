@@ -14,7 +14,7 @@
                  [edu.stanford.nlp/stanford-corenlp "1.3.4"] 
                  [edu.stanford.nlp/stanford-corenlp "1.3.4" :classifier "models"]
                 ; [edu.stanford.nlp/stanford-corenlp-models "1.3.4-models"]
-                 [org.apache.opennlp/opennlp-maxent "3.0.3-SNAPSHOT"]
+                 [org.apache.opennlp/opennlp-maxent "3.0.3"]
                  [experiment/experiment "1.5.3"] ;OPENNLP HACKED
                  [clojure-opennlp "0.2.0" :exclusions [[org.apache.opennlp/opennlp-tools]]]
                  [net.sf.jwordnet/jwnl "1.4_rc3"] ;latest wordnet
