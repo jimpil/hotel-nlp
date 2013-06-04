@@ -1,7 +1,10 @@
 (ns hotel_nlp.externals.JgraphT
+  (:use [clojure.pprint :only [pprint]])
   (:require [flatland.ordered.set :refer [ordered-set]])
   (:import  [org.jgrapht.graph SimpleDirectedGraph DirectedMultigraph DefaultEdge ClassBasedEdgeFactory]
             [org.jgrapht Graph]
+            [org.jgraph JGraph] 
+            [org.jgrapht.alg DijkstraShortestPath FloydWarshallShortestPaths]
             [hotel_nlp.externals RelationEdge]))
 
 
@@ -91,21 +94,48 @@
   (map->graph M (SimpleDirectedGraph. RelationEdge))) )
 
 (defn recognised? [^String s]
-  (re-find #"concentrations?|midazolam|didanosine|tenofovir|bioavailability|[0-9]{1,2}.([0-9]{1,4})?|(%|per\s?cent)" s))
+  (re-find #"concentrations?|midazolam|didanosine|tenofovir|bioavailability|[0-9]{1,2}.([0-9]{1,4})?|(per\s?cent)|clopidogrel|omeprazole|Plavix|paracetamol" s))
 
 (defn walk-graph 
 ([^Graph G] 
   (walk-graph G (.getTarget (some #(when (= "ROOT" (str %)) %) (.edgeSet G)))))  
 ([^org.jgrapht.Graph G ^String start-vertex-name]
-   (let [start (some #(when (= start-vertex-name %) %) (.vertexSet G))
+   (let [start (some #{start-vertex-name} (.vertexSet G))
          all-edges (.edgeSet G)
          edges-from-start (.edgesOf G start)
-         juxted-fn (juxt #(.getSource %) str #(.getTarget %))] 
+         juxted-fn (juxt #(.getSource %) str #(.getTarget %))]
+ ;(group-by second          
     (for [e all-edges :when (or (recognised? (.getSource e)) 
                                 (recognised? (.getTarget e))
                                 (= start (.getSource e))
                                 (= start (.getTarget e)))]   
-      (juxted-fn e)))) )
+      (juxted-fn e))))) ;)
+      
+(def G (-> "ha.txt" 
+          enju->map 
+          (map->graph (SimpleDirectedGraph. RelationEdge))))
+
+(defn visualise [^Graph G] 
+(let [model-adapter (org.jgrapht.ext.JGraphModelAdapter. G)
+      jgraph (doto (org.jgraph.JGraph. model-adapter) 
+               (.setConnectable false) 
+               (.setDropEnabled false) 
+               (.setDisconnectOnMove false))
+      frame (javax.swing.JFrame. "Dependency-graph visualisation")]
+     (.add (.getContentPane frame) (javax.swing.JScrollPane. jgraph)) 
+  (doto frame 
+       (.setDefaultCloseOperation (javax.swing.JFrame/DISPOSE_ON_CLOSE))
+       (.setPreferredSize (java.awt.Dimension. 700 500))
+       (.pack)
+       (.setVisible true)))) 
+ 
+;(.getShortestPaths (FloydWarshallShortestPaths. G) "ROOT")
+
+;(group-by #(some #{"decreased"} %) (walk-graph G))
+
+ 
+ 
+      
 
 
  
