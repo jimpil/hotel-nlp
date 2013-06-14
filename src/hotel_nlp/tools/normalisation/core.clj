@@ -20,12 +20,13 @@
 ;;High-performance extension points for all major Clojure data-structures including arrays [ints, floats, longs & doubles]
 ;;whatever collection type you pass in, the same type you will get back unless nothing covers it, in which case a lazy-seq will be most likely returned.
 ;;If you pass a non-persistent java.util.List object, you'll get a persistent vector back.
+;;Nested colelctions work as well.
 (extend-protocol Normalisable
       
 Number
 (normalise 
  ([this transform] (normalise this #(apply transform %1 %2) [[1 -1] [10 -10]]))
- ([this transform limits] (transform this limits)))
+ ([this transform args] (transform this args)))
  
 String
 (normalise 
@@ -41,7 +42,9 @@ java.util.List ;;if this fires, we're dealing with a Java list-like collection -
          bottom (delay (apply min this))]
    (mapv #(normalise % transform [top bottom]) this)) )
 ([this transform limits]
-   (normalise this #(transform %1 limits %2))) )  
+ (if (instance? java.util.Collection (first this))
+   (map #(normalise % transform limits) this)
+   (normalise this #(transform %1 limits %2)))) )  
   
 clojure.lang.IPersistentCollection;;if this fires, we don't know the type so  we'll return a lazy-seq
 (normalise
@@ -50,7 +53,9 @@ clojure.lang.IPersistentCollection;;if this fires, we don't know the type so  we
          bottom (delay (apply min this))]
    (map #(normalise % transform [top bottom]) this)) )
 ([this transform limits]
-   (normalise this #(transform %1 limits %2))) )
+ (if (instance? java.util.Collection (first this))
+   (map #(normalise % transform limits) this)
+   (normalise this #(transform %1 limits %2)))) )
      
 clojure.lang.PersistentList
 (normalise
@@ -61,7 +66,9 @@ clojure.lang.PersistentList
        rseq
       (into '()))) )
 ([this transform limits]
-   (normalise this #(transform %1 limits %2))) ) 
+ (if (instance? java.util.Collection (first this))
+   (map #(normalise % transform limits) this)
+   (normalise this #(transform %1 limits %2)))) ) 
     
 clojure.lang.LazySeq
 (normalise
@@ -70,7 +77,9 @@ clojure.lang.LazySeq
          bottom (delay (apply min this))]
    (map #(normalise % transform [top bottom]) this)) )
 ([this transform limits]
-   (normalise this #(transform %1 limits %2))) )
+ (if (instance? java.util.Collection (first this))
+   (map #(normalise % transform limits) this)
+   (normalise this #(transform %1 limits %2)))) )
       
 clojure.lang.IPersistentVector
 (normalise
@@ -82,7 +91,9 @@ clojure.lang.IPersistentVector
    (into []                                         ;;do it in parallel using reducers
      (r/foldcat (r/map #(normalise % transform [top bottom]) this))))) )
 ([this transform limits]
-   (normalise this #(transform %1 limits %2))) ) 
+  (if (instance? java.util.Collection (first this))
+   (mapv #(normalise % transform limits) this)
+   (normalise this #(transform %1 limits %2)))) ) 
      
 clojure.lang.IPersistentSet ;;sets are typically not ordered so ordering will dissapear after processing
 (normalise
@@ -92,7 +103,9 @@ clojure.lang.IPersistentSet ;;sets are typically not ordered so ordering will di
  (persistent!        
    (reduce #(conj! %1 (normalise %2 transform [top bottom])) (transient #{}) this))))
 ([this transform limits]
-   (normalise this #(transform %1 limits %2))) )
+ (if (instance? java.util.Collection (first this))
+   (reduce #(conj! %1 (normalise %2 transform limits)) (transient #{}) this)
+   (normalise this #(transform %1 limits %2)))) )
    
 clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND values (a dataset perhaps?)
 (normalise
@@ -142,6 +155,18 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
    (amap ^ints this idx ret (int (normalise (aget ^ints this idx) transform [top bottom])))))
 ([this transform limits]
    (normalise this #(transform %1 limits %2)))) )
+   
+(extend-protocol Normalisable
+(Class/forName "[Ljava.lang.Object;")
+(normalise
+([this transform]
+   (let [top    (delay (apply max this))
+         bottom (delay (apply min this))]
+   (amap #^"[Ljava.lang.Object;" this idx ret (normalise (aget #^"[Ljava.lang.Object;" this idx) transform [top bottom]))))
+([this transform limits]
+ (if (instance? (Class/forName "[Ljava.lang.Object;") (first this))
+   (amap #^"[Ljava.lang.Object;" this idx ret  (normalise (aget #^"[Ljava.lang.Object;" this idx) transform limits))
+   (normalise this #(transform %1 limits %2))))) )   
    
 ;;this is how client code would look like   
 (defn in-range-formula 
