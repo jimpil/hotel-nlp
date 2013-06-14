@@ -16,7 +16,7 @@
 )  
 
 
-
+(set! *warn-on-reflection* true)
      
 (def ^:dynamic *cpu-no* (.. Runtime getRuntime availableProcessors))
 (def fj-chunk-size (atom 5))
@@ -39,8 +39,8 @@
  (ut/join 
   (split s sentence-segmentation-regex))) 
 
-(defn split-sentences [filename]
-(s-split  (slurp filename)))
+(definline split-sentences [filename]
+`(s-split  (slurp ~filename)))
 
 (defn simple-tokenize 
 "An extremely simple tokenizer that splits on any non-alphanumeric character.
@@ -113,7 +113,7 @@
         f-seq (if-let [ff ffilter] 
                 (.listFiles directory (ut/file-filter ff)) 
                 (.listFiles directory))
-        f-seq-names (for [f f-seq :when #(.isFile ^File f)] (.getPath ^File f))]
+        f-seq-names (for [^File f f-seq :when #(.isFile f)] (.getPath f))]
  (reset! global-dic (ut/unite (mapv ut/normaliser (next data-seq))))     
  (mapv #(vec (concat (list %) (next data-seq))) f-seq-names)))) ) ;;build the new 2d vector        
       
