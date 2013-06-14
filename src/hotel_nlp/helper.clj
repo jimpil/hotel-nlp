@@ -23,6 +23,7 @@
             RussianStemmer SpanishStemmer SwedishStemmer TurkishStemmer])  
 )
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* true)
 (def cpu-no "Tne number of processors on this machine." (.. Runtime getRuntime availableProcessors))
 
 (declare addC removeC replaceC insert-at remove-at link*)
@@ -190,17 +191,29 @@ only when there's a non-map at a particular level.
 
 
 (defn porter-stemmer 
-"Depending on lang, returns the appropriate porter-stemmer instance. Using Snowball underneath."
+"Depending on lang, returns the appropriate porter-stemmer instance. Using Snowball underneath.
+ Supported languages include the following: 
+ [danish, french, italian, spanish dutch, german, english, romanian, turkish, finnish, hungarian, russian, swedish, norwegian, portugese]
+ If the language you specified does not match anything, an instance of the english stemmer will be returned."
 ^org.tartarus.snowball.SnowballProgram
 [^String lang]
 (case lang
 	"danish"    (DanishStemmer.)  "dutch"   (DutchStemmer.)   "english"   (EnglishStemmer.) "finnish"   (FinnishStemmer.) 
 	"french"    (FrenchStemmer.)  "german2" (German2Stemmer.) "german"    (GermanStemmer.)  "hungarian" (HungarianStemmer.)
         "italian"   (ItalianStemmer.) "kp"      (KpStemmer.)      "lovins"    (LovinsStemmer.)  "norwegian" (NorwegianStemmer.) 
-	"porter"    (PorterStemmer.)  "postugese" (PortugueseStemmer.) "romanian"  (RomanianStemmer.) "russian" (RussianStemmer.) 
-	"spanish"   (SpanishStemmer.) "swedish"   (SwedishStemmer.)    "turskish"  (TurkishStemmer.)
- (throw 
-  (IllegalArgumentException. "Language NOT supported...Aborting!")))) 
+        "portugese" (PortugueseStemmer.) "romanian"  (RomanianStemmer.) "russian" (RussianStemmer.) "spanish" (SpanishStemmer.) 
+        "swedish"   (SwedishStemmer.)    "turskish"  (TurkishStemmer.)
+  (EnglishStemmer.) )) 
+  
+(defn porter-stem "A function that stems words using Porter's algorithm."
+(^String [^String s ^String lang]
+ (let [stemmer (porter-stemmer lang)]
+   (.getCurrent
+      (doto stemmer 
+        (.setCurrent s) 
+        .stem)))) 
+([ss] ;;a collection?
+  (mapv #(porter-stem % "english") ss)) )          
 
 (defmacro instantiate 
 "Returns an instance of the given class. Depending on the argument list will invoke the coresponding contructor." 
@@ -401,7 +414,7 @@ ordering."
 ([f coll fj-chunk-size] 
   (rmap f coll fj-chunk-size fj-chunk-size false))
 ([f coll] 
-  (rmap f coll (int (/ (count coll) cpu-no)))) )  
+  (rmap f coll 1)) )  
 
 (defn rhmap
 "A high-performance, fork-join based mapping function that uses ArrayList underneath." 
@@ -410,7 +423,7 @@ ordering."
 ([f coll fj-chunk-size] 
   (rhmap f coll fj-chunk-size false))  
 ([f coll] 
-  (rhmap f coll (int (/ (count coll) cpu-no)))) )   
+  (rhmap f coll 1)) )   
 
 (defn mapr
 "A pretty basic map-reduce style mapping function. Will partition the data according to p-size and assign a future to each partition (per pmap)."  
@@ -436,12 +449,12 @@ ordering."
    (let [set-views (map set ds)]
      (apply sets/union set-views)) (first ds)))
      
-(defn file-filter "Returns a FileFilter object that scans according the specified filter." 
-[^String filter]
+(defn file-filter "Returns a reified FileFilter object that scans according the specified filter." 
+^FileFilter [^String filter]
 (reify FileFilter
  (accept [this f]
   (boolean 
-  (re-find (re-pattern (str ".*" filter)) (.getName ^File f))))))
+  (re-find (re-pattern (str ".*" filter)) (.getName f))))))
   
 (definline url? [x]
 `(instance? java.net.URL ~x))   
@@ -450,8 +463,7 @@ ordering."
 "Read the file f back on memory safely. 
  Contents of f should be a clojure data-structure. Not allowed to execute arbitrary code (per #=)." 
 [^String fname]
-(io!
- (edn/read-string (slurp fname)))) 
+(io! (edn/read-string (slurp fname)))) 
  
 (defn space-out 
 "Given some text, find all tags (according to the tagging-scheme) that are not surrounded by spaces and put spaces around them." 
