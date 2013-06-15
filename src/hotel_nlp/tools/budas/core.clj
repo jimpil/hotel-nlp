@@ -1,4 +1,4 @@
-(ns hotel_nlp.tools.normalisation.core
+(ns hotel_nlp.tools.budas.core
    (:require ;[clojure.pprint :refer [pprint]]
              [hotel_nlp.helper    :as help] 
              [clojure.core.reducers :as r]
@@ -185,9 +185,10 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 
 (defn reciprocal-formula 
 "Reciprocal normalization is always normalizing to a number in the range between 0 and 1.
- It should only be used to normalize numbers greater than 1. Do NOT pass in 0!"
+ It should only be used to normalize numbers greater than or equal to 1. Do NOT pass in 0!"
 ([x _ _]
-  (/ 1 x))
+ (if (>= x 1)  (/ 1 x) 
+   (throw (IllegalArgumentException. "Reciprocal-formula cannot be used with values less than 1."))))
 ([x _]
 (reciprocal-formula x _ nil))
 ([x] 
@@ -196,9 +197,11 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (def transform-reciprocal "Reciprocal transformer." (partial transform-val reciprocal-formula)) 
  
 (defn divide-by-value-formula
-"Nrmalises by dividing all elements by the given value." 
+"Normalises by dividing all elements by the given value." 
 ([div-val x _ ]
-  (/ x div-val))
+ (if (= div-val 0)  
+  (throw (IllegalArgumentException. "Cannot divide by zero! Choose a different value..."))
+   (/ x div-val)))
 ([div-val x]
   (divide-by-value-formula div-val x nil)) )       
 
@@ -206,11 +209,11 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 
 (defn porter-formula 
 "The normalisation 'formula' for Porter's algorithm." 
-([s lang _]
+([^String s lang _]
   (help/porter-stem s lang))
-([s lang] 
+([^String s lang] 
   (porter-formula s lang nil))
-([s] 
+([^String s] 
   (porter-formula s "english")) )
 
 (def transform-by-porter "Porter's normalisation transformer." (partial transform-val porter-formula))  

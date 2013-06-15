@@ -4,7 +4,6 @@
               [hotel_nlp.helper :as help]         
     )
     (:import  [hotel_nlp.helper Workflow]    
-              [opennlp.tools.namefind TokenNameFinder]
               [java.io FileInputStream]
               [opennlp.tools.util Span]
               [edu.stanford.nlp.pipeline Annotator AnnotationPipeline StanfordCoreNLP Annotation]
