@@ -6,6 +6,7 @@
               [hotel_nlp.algorithms.viterbi :as vit]
               [hotel_nlp.algorithms.levenshtein :as lev]
               [hotel_nlp.algorithms.ngrams :refer [ngrams*]]
+              [hotel_nlp.tools.budas.core  :refer [normalise transform-by-porter]]
     )
     (:import [hotel_nlp.helper Workflow])
 )
@@ -18,11 +19,7 @@
  (stem 
   ([this] (stem this "english"))
   ([this lang]
-     (let [stemmer (help/porter-stemmer lang)]
-      (.getCurrent
-         (doto stemmer 
-            (.setCurrent this) 
-            (.stem))))))
+    (normalise this transform-by-porter lang)))
  (getRoot [this _ dic] (get dic this "NOT-FOUND!"))
  IDistance
  (getDistance
