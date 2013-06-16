@@ -187,8 +187,15 @@ only when there's a non-map at a particular level.
      (if (every? map? maps)
         (apply merge-with m maps)
         (apply f maps)))
-  maps))      
-
+  maps))
+  
+        
+(def porter-stemmers "All the languages supported by Porter-stemmer." 
+  {"danish"    (DanishStemmer.)  "dutch"   (DutchStemmer.)   "english"   (EnglishStemmer.) "finnish"   (FinnishStemmer.) 
+   "french"    (FrenchStemmer.)  "german2" (German2Stemmer.) "german"    (GermanStemmer.)  "hungarian" (HungarianStemmer.)
+   "italian"   (ItalianStemmer.) "kp"      (KpStemmer.)      "lovins"    (LovinsStemmer.)  "norwegian" (NorwegianStemmer.) 
+   "portugese" (PortugueseStemmer.) "romanian"  (RomanianStemmer.) "russian" (RussianStemmer.) "spanish" (SpanishStemmer.) 
+   "swedish"   (SwedishStemmer.)    "turskish"  (TurkishStemmer.)} )
 
 (defn porter-stemmer 
 "Depending on lang, returns the appropriate porter-stemmer instance. Using Snowball underneath.
@@ -197,13 +204,7 @@ only when there's a non-map at a particular level.
  If the language you specified does not match anything, an instance of the english stemmer will be returned."
 ^org.tartarus.snowball.SnowballProgram
 [^String lang]
-(case lang
-	"danish"    (DanishStemmer.)  "dutch"   (DutchStemmer.)   "english"   (EnglishStemmer.) "finnish"   (FinnishStemmer.) 
-	"french"    (FrenchStemmer.)  "german2" (German2Stemmer.) "german"    (GermanStemmer.)  "hungarian" (HungarianStemmer.)
-        "italian"   (ItalianStemmer.) "kp"      (KpStemmer.)      "lovins"    (LovinsStemmer.)  "norwegian" (NorwegianStemmer.) 
-        "portugese" (PortugueseStemmer.) "romanian"  (RomanianStemmer.) "russian" (RussianStemmer.) "spanish" (SpanishStemmer.) 
-        "swedish"   (SwedishStemmer.)    "turskish"  (TurkishStemmer.)
-  (EnglishStemmer.) )) 
+ (get porter-stemmers lang (get porter-stemmers "english"))) 
   
 (defn porter-stem "A function that stems words using Porter's algorithm."
 (^String [^String s ^String lang]
@@ -394,10 +395,9 @@ ordering."
 ([f coll threads]
  (let [exec (Executors/newFixedThreadPool threads)
        pool (ExecutorCompletionService. exec)
-       futures (try (doall (for [x coll] (.submit pool #(f x))))
+       futures (try (mapv (fn [x] (.submit pool #(f x))) coll)
                (finally (.shutdown exec)))] 
- (for [_ futures]  
-   (.. pool take get)) ))
+(repeatedly (count futures) #(.. pool take get))))
 ([f coll] 
   (pool-map f coll (+ 2 cpu-no))))   
 
