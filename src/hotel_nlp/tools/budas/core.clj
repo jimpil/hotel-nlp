@@ -185,9 +185,9 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 
 (defn reciprocal-formula 
 "Reciprocal normalization is always normalizing to a number in the range between 0 and 1.
- It should only be used to normalize numbers greater than or equal to 1. Do NOT pass in 0!"
+ It should only be used to normalize numbers greater than 1. In particular, do NOT pass in 0 as the first arg."
 ([x _ _]
- (if (>= x 1)  (/ 1 x) 
+ (if (> x 1)  (/ 1 x) 
    (throw (IllegalArgumentException. "Reciprocal-formula cannot be used with values less than 1."))))
 ([x _]
 (reciprocal-formula x _ nil))
@@ -198,10 +198,8 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
  
 (defn divide-by-value-formula
 "Normalises by dividing all elements by the given value." 
-([div-val x _ ]
- (if (= div-val 0)  
-  (throw (IllegalArgumentException. "Cannot divide by zero! Choose a different value..."))
-   (/ x div-val)))
+([div-val x _]
+   (/ x div-val))
 ([div-val x]
   (divide-by-value-formula div-val x nil)) )       
 
