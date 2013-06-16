@@ -7,6 +7,7 @@
   :dependencies [[org.clojure/clojure "1.5.1"]
  		 [org.clojure/data.zip "0.1.1"]
  		 [org.clojure/tools.nrepl "0.2.2"]
+ 		 [org.clojure/math.combinatorics "0.0.4"]
  		 ;[weissjeffm/clojure.prxml "1.3.0-SNAPSHOT"]
                  ;[org.clojure/tools.cli "0.2.2"]
                  ;[org.apache.opennlp/opennlp-tools "1.5.2-incubating"]
@@ -31,10 +32,11 @@
                  [jgraph/jgraph "5.13.0.0"]
                  [org.flatland/ordered "1.5.1"]
                  ]
-  :jvm-opts ["-Xmx2g" "-server"  ;;ideally need 3GB for stanford-corenlp
+  :jvm-opts ["-Xmx3g" "-server"  ;;ideally need 3GB for stanford-corenlp
              "-XX:+OptimizeStringConcat" 
              "-XX:-UseCompressedOops" 
              "-XX:+UseStringCache"
+             "-XX:+UseParallelGC" "-XX:+UseParallelOldGC" "-XX:+DoEscapeAnalysis"
              ;"-DWNSEARCHDIR=/home/dimitris/WordNet-3.0/dict/" ;;need this for jwnl.jar and opennlp-coref
             ]
   ;:jar-name           ; name of the jar produced by 'lein jar'
@@ -44,6 +46,8 @@
   ;:aot :all #_[hotel_nlp.protocols]
   ;:warn-on-reflection true
   ;:main cluja.app.core
+  :scm {:name "git"
+        :url "https://github.com/jimpil/hotel-nlp"}
   :pom-addition [:developers  [:developer {:id "jimpil"}
                               [:name "Dimitrios Piliouras"]
                               [:url "http://www.cs.man.ac.uk/~piliourd/"]]]
