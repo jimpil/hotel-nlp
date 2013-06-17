@@ -189,13 +189,6 @@ only when there's a non-map at a particular level.
         (apply f maps)))
   maps))
   
-        
-(def porter-stemmers "All the languages supported by Porter-stemmer." 
-  {"danish"    (DanishStemmer.)  "dutch"   (DutchStemmer.)   "english"   (EnglishStemmer.) "finnish"   (FinnishStemmer.) 
-   "french"    (FrenchStemmer.)  "german2" (German2Stemmer.) "german"    (GermanStemmer.)  "hungarian" (HungarianStemmer.)
-   "italian"   (ItalianStemmer.) "kp"      (KpStemmer.)      "lovins"    (LovinsStemmer.)  "norwegian" (NorwegianStemmer.) 
-   "portugese" (PortugueseStemmer.) "romanian"  (RomanianStemmer.) "russian" (RussianStemmer.) "spanish" (SpanishStemmer.) 
-   "swedish"   (SwedishStemmer.)    "turskish"  (TurkishStemmer.)} )
 
 (defn porter-stemmer 
 "Depending on lang, returns the appropriate porter-stemmer instance. Using Snowball underneath.
@@ -204,17 +197,26 @@ only when there's a non-map at a particular level.
  If the language you specified does not match anything, an instance of the english stemmer will be returned."
 ^org.tartarus.snowball.SnowballProgram
 [^String lang]
- (get porter-stemmers lang (get porter-stemmers "english"))) 
+(case lang
+   "danish"    (DanishStemmer.)  "dutch"   (DutchStemmer.)   "english"   (EnglishStemmer.) "finnish"   (FinnishStemmer.) 
+   "french"    (FrenchStemmer.)  "german2" (German2Stemmer.) "german"    (GermanStemmer.)  "hungarian" (HungarianStemmer.)
+   "italian"   (ItalianStemmer.) "kp"      (KpStemmer.)      "lovins"    (LovinsStemmer.)  "norwegian" (NorwegianStemmer.) 
+   "portugese" (PortugueseStemmer.) "romanian"  (RomanianStemmer.) "russian" (RussianStemmer.) "spanish" (SpanishStemmer.) 
+   "swedish"   (SwedishStemmer.)    "turskish"  (TurkishStemmer.)
+ (EnglishStemmer.)) )
+ 
   
 (defn porter-stem "A function that stems words using Porter's algorithm."
-(^String [^String s ^String lang]
- (let [stemmer (porter-stemmer lang)]
+(^String [^String s lang]
+ (let [^org.tartarus.snowball.SnowballProgram stemmer 
+            (cond-> lang 
+                 (string? lang) (porter-stemmer))] ;if a stemmer object was passed in, use it!
    (.getCurrent
       (doto stemmer 
         (.setCurrent s) 
         .stem)))) 
 ([ss] ;;a collection?
-  (mapv #(porter-stem % "english") ss)) )          
+  (mapv #(porter-stem % (porter-stemmer "english")) ss)) )          
 
 (defmacro instantiate 
 "Returns an instance of the given class. Depending on the argument list will invoke the coresponding contructor." 
