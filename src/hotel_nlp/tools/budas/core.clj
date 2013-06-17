@@ -1,4 +1,4 @@
-(ns hotel_nlp.tools.budas.core
+(ns hotel_nlp.tools.normal.core
    (:require ;[clojure.pprint :refer [pprint]]
              [hotel_nlp.helper    :as help] 
              [clojure.core.reducers :as r]) )
@@ -42,7 +42,7 @@ java.util.List ;;if this fires, we're dealing with a Java list-like collection -
    (mapv #(normalise % transform [top bottom]) this)) )
 ([this transform limits]
  (if (instance? java.util.Collection (first this))
-   (map #(normalise % transform limits) this)
+   (mapv #(normalise % transform limits) this)
    (normalise this #(transform %1 limits %2)))) )  
   
 clojure.lang.IPersistentCollection;;if this fires, we don't know the type so  we'll return a lazy-seq
@@ -85,10 +85,7 @@ clojure.lang.IPersistentVector
 ([this transform]
  (let [top    (delay (apply max this))
        bottom (delay (apply min this))]
- (if (> 1000 (count this)) 
-   (mapv #(normalise % transform [top bottom]) this);;do it serially in one pass           
-   (into []                                         ;;do it in parallel using reducers
-     (r/foldcat (r/map #(normalise % transform [top bottom]) this))))) )
+   (mapv #(normalise % transform [top bottom]) this)) )
 ([this transform limits]
   (if (instance? java.util.Collection (first this))
    (mapv #(normalise % transform limits) this)
