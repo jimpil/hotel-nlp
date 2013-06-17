@@ -1,8 +1,7 @@
 (ns hotel_nlp.tools.budas.core
    (:require ;[clojure.pprint :refer [pprint]]
              [hotel_nlp.helper    :as help] 
-             [clojure.core.reducers :as r]
-             #_[clojure.test :refer [with-test is testing run-tests]]) )
+             [clojure.core.reducers :as r]) )
 ;-----------------------------------------------------------------------------------------------------------------------------------             
 ;----------------------------<EXPERIMENTAL CODE>------------------------------------------------------------------------------------             
 
@@ -198,21 +197,24 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
  
 (defn divide-by-value-formula
 "Normalises by dividing all elements by the given value." 
-([div-val x _]
+([x div-val _]
    (/ x div-val))
-([div-val x]
-  (divide-by-value-formula div-val x nil)) )       
+([x _]
+  (divide-by-value-formula x 10 nil)) )       
 
-(def transform-by-value "Divide-by-value transformer."  (partial transform-val (partial divide-by-value-formula 100)))
+(def transform-by-value "Divide-by-value transformer."  (partial transform-val divide-by-value-formula))
 
 (defn porter-formula 
 "The normalisation 'formula' for Porter's algorithm." 
-([^String s lang _]
-  (help/porter-stem s lang))
-([^String s lang] 
-  (porter-formula s lang nil))
+([^String s lang-or-obj _]
+  (help/porter-stem s lang-or-obj))
+([^String s _] 
+  (porter-formula s "english" nil))
 ([^String s] 
   (porter-formula s "english")) )
 
-(def transform-by-porter "Porter's normalisation transformer." (partial transform-val porter-formula))  
+(def transform-by-porter "Porter's normalisation transformer." 
+  (partial transform-val porter-formula))
+(def transform-by-porter-reuse "Porter's normalisation transformer that reuses the same Object." 
+  (partial transform-val #(porter-formula % (help/porter-stemmer "english") %&))) 
    
