@@ -6,7 +6,7 @@
               [hotel_nlp.algorithms.viterbi :as vit]
               [hotel_nlp.algorithms.levenshtein :as lev]
               [hotel_nlp.algorithms.ngrams :refer [ngrams*]]
-              [hotel_nlp.tools.budas.core  :refer [normalise transform-by-porter]]
+              [hotel_nlp.tools.budas.core  :refer [normalise porter-formula]]
     )
     (:import [hotel_nlp.helper Workflow])
 )
@@ -18,8 +18,8 @@
  IStemmable
  (stem 
   ([this] (stem this "english"))
-  ([this lang]
-    (normalise this transform-by-porter lang)))
+  ([this lang-or-obj]
+    (normalise this #(porter-formula %1 lang-or-obj nil))))
  (getRoot [this _ dic] (get dic this "NOT-FOUND!"))
  IDistance
  (getDistance
