@@ -18,22 +18,24 @@
 (extend-protocol Normalisable
       
 Number
-(normalise [this transform] 
-  (transform this))
+(normalise [this transform] (transform this))
  
 String
-(normalise [this stem] 
-  (stem this))
+(normalise [this stem] (stem this))
   
-java.util.List ;;if this fires, we're dealing with a Java list-like collection - return a vector
+java.util.List ;;if this fires, we're dealing with a Java list-like collection - return a java.util.ArrayList
 (normalise [this transform]
 (if (instance? java.util.Collection (first this))
 (mapv #(normalise % transform) this)
  (let [top    (delay (apply max this))
        bottom (delay (apply min this))]
-   (mapv (fn [x] (normalise x #(transform % [top bottom]))) this))) ) 
+  (reduce 
+    (fn [^java.util.List l x] 
+     (doto l 
+      (.add (normalise x #(transform % [top bottom]))))) 
+  (java.util.ArrayList.) this))) )   
   
-clojure.lang.IPersistentCollection;;if this fires, we don't know the type so  we'll return a lazy-seq
+clojure.lang.IPersistentCollection;;if this fires, we don't know the type so we'll return a lazy-seq
 (normalise [this transform]
 (if (instance? java.util.Collection (first this))
 (map #(normalise % transform ) this)
