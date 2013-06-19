@@ -493,14 +493,13 @@ ordering."
     (finally
       (~close-fn ~x))))))
 
-(defn map->properties "Converts a Map<String,String> to a java.util.Properties object."
-  [property-value-map]
-  {:pre  [(every? #(every? string? %) property-value-map)]} 
-    (reduce-kv 
-       (fn [^java.util.Properties p k v] 
-         (doto p (.setProperty  k v)))
-     (java.util.Properties.) property-value-map))
-  
+(defn map->properties 
+"Converts a Map<String, String> to a java.util.Properties object."
+[property-value-map]
+ {:pre [(every? #(every? string? %) property-value-map)]} 
+  (doto (java.util.Properties.)
+    (.putAll property-value-map)))
+     
 
 (defn map-difference 
   "Compares the 2 given maps and returns a map of their difference." 
