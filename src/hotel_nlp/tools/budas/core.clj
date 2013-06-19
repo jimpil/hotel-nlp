@@ -173,6 +173,6 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
   (porter-formula s "english")) )
 
 ;typical porter transformers
-(def transform-by-porter "Porter's normalisation transformer." porter-formula)
-(def transform-by-porter-reuse "Porter's normalisation transformer that reuses the same Object." #(porter-formula %1 (help/porter-stemmer "english") %2)) 
+(def transform-by-porter "Porter's normalisation transformer for english." porter-formula)
+(def transform-by-porter-reuse "Porter's normalisation transformer that reuses the same object." #(porter-formula %1 (help/porter-stemmer "english") %2)) 
    
