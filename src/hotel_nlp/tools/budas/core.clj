@@ -1,4 +1,4 @@
-(ns hotel_nlp.tools.normal.core
+(ns hotel_nlp.tools.budas.core
    (:require ;[clojure.pprint :refer [pprint]]
              [hotel_nlp.helper    :as help] 
              [clojure.core.reducers :as r]) )
@@ -23,146 +23,109 @@
 (extend-protocol Normalisable
       
 Number
-(normalise 
- ([this transform] (normalise this #(apply transform %1 %2) [[1 -1] [10 -10]]))
- ([this transform args] (transform this args)))
+(normalise [this transform] 
+  (transform this))
  
 String
-(normalise 
-([this stemmer] 
-  (normalise this stemmer "english"))
-([this stemmer lang] 
-  (stemmer this lang)))
+(normalise [this stem] 
+  (stem this))
   
 java.util.List ;;if this fires, we're dealing with a Java list-like collection - return a vector
-(normalise
-([this transform]
-   (let [top    (delay (apply max this))
-         bottom (delay (apply min this))]
-   (mapv #(normalise % transform [top bottom]) this)) )
-([this transform limits]
- (if (instance? java.util.Collection (first this))
-   (mapv #(normalise % transform limits) this)
-   (normalise this #(transform %1 limits %2)))) )  
-  
-clojure.lang.IPersistentCollection;;if this fires, we don't know the type so  we'll return a lazy-seq
-(normalise
-([this transform]
-   (let [top    (delay (apply max this))
-         bottom (delay (apply min this))]
-   (map #(normalise % transform [top bottom]) this)) )
-([this transform limits]
- (if (instance? java.util.Collection (first this))
-   (map #(normalise % transform limits) this)
-   (normalise this #(transform %1 limits %2)))) )
-     
-clojure.lang.PersistentList
-(normalise
-([this transform]
-   (let [top    (delay (apply max this))
-         bottom (delay (apply min this))]
-    (->> (mapv #(normalise % transform [top bottom]) this)
-       rseq
-      (into '()))) )
-([this transform limits]
- (if (instance? java.util.Collection (first this))
-   (map #(normalise % transform limits) this)
-   (normalise this #(transform %1 limits %2)))) ) 
-    
-clojure.lang.LazySeq
-(normalise
-([this transform]
-   (let [top    (delay (apply max this))
-         bottom (delay (apply min this))]
-   (map #(normalise % transform [top bottom]) this)) )
-([this transform limits]
- (if (instance? java.util.Collection (first this))
-   (map #(normalise % transform limits) this)
-   (normalise this #(transform %1 limits %2)))) )
-      
-clojure.lang.IPersistentVector
-(normalise
-([this transform]
+(normalise [this transform]
+(if (instance? java.util.Collection (first this))
+(mapv #(normalise % transform) this)
  (let [top    (delay (apply max this))
        bottom (delay (apply min this))]
-   (mapv #(normalise % transform [top bottom]) this)) )
-([this transform limits]
-  (if (instance? java.util.Collection (first this))
-   (mapv #(normalise % transform limits) this)
-   (normalise this #(transform %1 limits %2)))) ) 
+   (mapv (fn [x] (normalise x #(transform % [top bottom]))) this))) ) 
+  
+clojure.lang.IPersistentCollection;;if this fires, we don't know the type so  we'll return a lazy-seq
+(normalise [this transform]
+(if (instance? java.util.Collection (first this))
+(map #(normalise % transform ) this)
+ (let [top    (delay (apply max this))
+       bottom (delay (apply min this))]
+   (map (fn [x] (normalise x #(transform % [top bottom]))) this))) )
+
+clojure.lang.PersistentList
+(normalise
+[this transform]
+(if (instance? java.util.Collection (first this))
+(mapv #(normalise % transform) this)
+ (let [top    (delay (apply max this))
+       bottom (delay (apply min this))]
+  (->> (mapv (fn [x] (normalise x #(transform % [top bottom]))) this)
+     rseq
+    (into '())))) ) 
+    
+clojure.lang.LazySeq
+(normalise [this transform]
+(if (instance? java.util.Collection (first this))
+(map #(normalise % transform) this)
+ (let [top    (delay (apply max this))
+       bottom (delay (apply min this))]
+   (map (fn [x] (normalise x #(transform % [top bottom]))) this))) )
+      
+clojure.lang.IPersistentVector
+(normalise [this transform]
+(if (instance? java.util.Collection (first this))
+(mapv #(normalise % transform) this)
+ (let [top    (delay (apply max this))
+       bottom (delay (apply min this))]
+  (if (> 2001 (count this))     
+   (mapv (fn [x] (normalise x #(transform % [top bottom]))) this)
+   (into [] (r/foldcat (r/map (fn [x] (normalise x #(transform % [top bottom]))) this)))))) ) 
      
 clojure.lang.IPersistentSet ;;sets are typically not ordered so ordering will dissapear after processing
-(normalise
-([this transform]
-   (let [top    (delay (apply max this))
-         bottom (delay (apply min this))]
+(normalise [this transform]
+(if (instance? java.util.Collection (first this))
+(mapv #(normalise % transform) this)
+ (let [top    (delay (apply max this))
+       bottom (delay (apply min this))]
  (persistent!        
-   (reduce #(conj! %1 (normalise %2 transform [top bottom])) (transient #{}) this))))
-([this transform limits]
- (if (instance? java.util.Collection (first this))
-   (reduce #(conj! %1 (normalise %2 transform limits)) (transient #{}) this)
-   (normalise this #(transform %1 limits %2)))) )
+   (reduce (fn [ts x] (conj! ts (normalise x #(transform % [top bottom])))) (transient #{}) this)))) )
    
 clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND values (a dataset perhaps?)
-(normalise
-([this transform]
+(normalise [this transform]
  (persistent!        
    (reduce-kv #(assoc! %1 (normalise %2 transform) 
-                          (normalise %3 transform)) (transient {}) this)))
-([this transform limits]
-   (normalise this #(transform %1 limits %2))))  )
-   
+                          (normalise %3 transform)) (transient {}) this)))   )
+
+;;do the same for popular primitive array types   
 (extend-protocol Normalisable   
 (Class/forName "[D")  
-(normalise
-([this transform]
-   (let [top    (delay (apply max this))
-         bottom (delay (apply min this))]
-   (amap ^doubles this idx ret (double (normalise (aget ^doubles this idx) transform [top bottom])))))
-([this transform limits]
-   (normalise this #(transform %1 limits %2)))) )  
+(normalise [this transform]
+ (let [top    (delay (apply max this))
+       bottom (delay (apply min this))]
+ (amap ^doubles this idx ret (double (normalise (aget ^doubles this idx) #(transform % [top bottom])))))))  
    
 (extend-protocol Normalisable   
 (Class/forName "[F")  
-(normalise
-([this transform]
-   (let [top    (delay (apply max this))
-         bottom (delay (apply min this))]
-   (amap ^floats this idx ret (float (normalise (aget ^floats this idx) transform [top bottom])))))
-([this transform limits]
-   (normalise this #(transform %1 limits %2)))) )
+(normalise [this transform]
+ (let [top    (delay (apply max this))
+       bottom (delay (apply min this))]
+ (amap ^floats this idx ret (float (normalise (aget ^floats this idx) #(transform % [top bottom])))))))
    
-(extend-protocol Normalisable    
-(Class/forName "[J")
-(normalise
-([this transform]
-   (let [top    (delay (apply max this))
-         bottom (delay (apply min this))]
-   (amap ^longs this idx ret (long (normalise (aget ^longs this idx) transform [top bottom])))))
-([this transform limits]
-   (normalise this #(transform %1 limits %2)))) )
+(extend-protocol Normalisable   
+(Class/forName "[J")  
+(normalise [this transform]
+ (let [top    (delay (apply max this))
+       bottom (delay (apply min this))]
+ (amap ^longs this idx ret (long (normalise (aget ^longs this idx) #(transform % [top bottom])))))))
       
-(extend-protocol Normalisable
-(Class/forName "[I")
-(normalise
-([this transform]
-   (let [top    (delay (apply max this))
-         bottom (delay (apply min this))]
-   (amap ^ints this idx ret (int (normalise (aget ^ints this idx) transform [top bottom])))))
-([this transform limits]
-   (normalise this #(transform %1 limits %2)))) )
+(extend-protocol Normalisable   
+(Class/forName "[I")  
+(normalise [this transform]
+ (let [top    (delay (apply max this))
+       bottom (delay (apply min this))]
+ (amap ^ints this idx ret (int (normalise (aget ^ints this idx) #(transform % [top bottom])))))))
+  
+(extend-protocol Normalisable   
+(Class/forName "[Ljava.lang.Object;")  
+(normalise [this transform]
+ (let [top    (delay (apply max this))
+       bottom (delay (apply min this))]
+ (amap #^"[Ljava.lang.Object;" this idx ret (normalise (aget #^"[Ljava.lang.Object;" this idx) #(transform % [top bottom]))))))
    
-(extend-protocol Normalisable
-(Class/forName "[Ljava.lang.Object;")
-(normalise
-([this transform]
-   (let [top    (delay (apply max this))
-         bottom (delay (apply min this))]
-   (amap #^"[Ljava.lang.Object;" this idx ret (normalise (aget #^"[Ljava.lang.Object;" this idx) transform [top bottom]))))
-([this transform limits]
- (if (instance? (Class/forName "[Ljava.lang.Object;") (first this))
-   (amap #^"[Ljava.lang.Object;" this idx ret  (normalise (aget #^"[Ljava.lang.Object;" this idx) transform limits))
-   (normalise this #(transform %1 limits %2))))) )   
    
 ;;this is how client code would look like   
 (defn in-range-formula 
@@ -177,7 +140,9 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 ([x] 
   (in-range-formula x [1 -1] [10 -10])) )
 
-(def transform-in-range "In-range transformer." (partial transform-val in-range-formula))
+;typical in-range transformers
+(def transform-in-range1 "In-range [1 -1] transformer." in-range-formula)
+(def transform-in-range5 "In-range [5 -5] transformer." #(in-range-formula %1 [5 -5] %2))
 
 (defn reciprocal-formula 
 "Reciprocal normalization is always normalizing to a number in the range between 0 and 1.
@@ -189,8 +154,9 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (reciprocal-formula x _ nil))
 ([x] 
  (reciprocal-formula x nil)) )
- 
-(def transform-reciprocal "Reciprocal transformer." (partial transform-val reciprocal-formula)) 
+
+;typical reciprocal tranformer 
+(def transform-reciprocal "Reciprocal transformer." reciprocal-formula) 
  
 (defn divide-by-value-formula
 "Normalises by dividing all elements by the given value." 
@@ -199,7 +165,8 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 ([x _]
   (divide-by-value-formula x 10 nil)) )       
 
-(def transform-by-value "Divide-by-value transformer."  (partial transform-val divide-by-value-formula))
+;typical divide-by-value transformer
+(def transform-by-value "Divide-by-value transformer."  divide-by-value-formula)
 
 (defn porter-formula 
 "The normalisation 'formula' for Porter's algorithm." 
@@ -210,8 +177,7 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 ([^String s] 
   (porter-formula s "english")) )
 
-(def transform-by-porter "Porter's normalisation transformer." 
-  (partial transform-val porter-formula))
-(def transform-by-porter-reuse "Porter's normalisation transformer that reuses the same Object." 
-  (partial transform-val #(porter-formula % (help/porter-stemmer "english") %&))) 
+;typical porter transformers
+(def transform-by-porter "Porter's normalisation transformer." porter-formula)
+(def transform-by-porter-reuse "Porter's normalisation transformer that reuses the same Object." #(porter-formula % (help/porter-stemmer "english") %&)) 
    
