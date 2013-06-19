@@ -8,6 +8,7 @@
  		 [org.clojure/data.zip "0.1.1"]
  		 [org.clojure/tools.nrepl "0.2.2"]
  		 [org.clojure/math.combinatorics "0.0.4"]
+ 		 [javax.mail/mail "1.4.3"]
  		 ;[weissjeffm/clojure.prxml "1.3.0-SNAPSHOT"]
                  ;[org.clojure/tools.cli "0.2.2"]
                  ;[org.apache.opennlp/opennlp-tools "1.5.2-incubating"]
