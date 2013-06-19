@@ -9,12 +9,7 @@
 (set! *unchecked-math* true)
 
 (defprotocol Normalisable
-(normalise [this transform-fn] 
-           [this transform-fn limits]))
-           
-(defn transform-val "A generic tranformation fn. Expects the formula to use (another fn), an element and potential extra arguments."
-([formula x & opts]  (apply formula x opts))
-([formula x] (transform-val formula x  1 -1)) )          
+(normalise [this transformer]))        
 
 ;;High-performance extension points for all major Clojure data-structures including arrays [ints, floats, longs & doubles]
 ;;whatever collection type you pass in, the same type you will get back unless nothing covers it, in which case a lazy-seq will be most likely returned.
@@ -71,7 +66,7 @@ clojure.lang.IPersistentVector
 (mapv #(normalise % transform) this)
  (let [top    (delay (apply max this))
        bottom (delay (apply min this))]
-  (if (> 2001 (count this))     
+  (if (> 1124 (count this))     
    (mapv (fn [x] (normalise x #(transform % [top bottom]))) this)
    (into [] (r/foldcat (r/map (fn [x] (normalise x #(transform % [top bottom]))) this)))))) ) 
      
@@ -179,5 +174,5 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 
 ;typical porter transformers
 (def transform-by-porter "Porter's normalisation transformer." porter-formula)
-(def transform-by-porter-reuse "Porter's normalisation transformer that reuses the same Object." #(porter-formula % (help/porter-stemmer "english") %&)) 
+(def transform-by-porter-reuse "Porter's normalisation transformer that reuses the same Object." #(porter-formula %1 (help/porter-stemmer "english") %2)) 
    
