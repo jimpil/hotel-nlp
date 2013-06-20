@@ -1,4 +1,4 @@
-(ns hotel_nlp.tools.budas.core
+(ns hotel_nlp.tools.normalito.core
    (:require ;[clojure.pprint :refer [pprint]]
              [hotel_nlp.helper    :as help] 
              [clojure.core.reducers :as r]) )
@@ -15,11 +15,9 @@
 ;;whatever collection type you pass in, the same type you will get back unless nothing covers it, in which case a lazy-seq will be most likely returned.
 ;;If you pass a non-persistent java.util.List object, you'll get a persistent vector back.
 ;;Nested colelctions work as well.
-(extend-protocol Normalisable
-      
+(extend-protocol Normalisable     
 Number
 (normalise [this transform] (transform this))
- 
 String
 (normalise [this stem] (stem this))
   
@@ -33,7 +31,7 @@ java.util.List ;;if this fires, we're dealing with a Java list-like collection -
     (fn [^java.util.List l x] 
      (doto l 
       (.add (normalise x #(transform % [top bottom]))))) 
-  (java.util.ArrayList.) this))) )   
+  (java.util.ArrayList. (.size this)) this))) )   
   
 clojure.lang.IPersistentCollection;;if this fires, we don't know the type so we'll return a lazy-seq
 (normalise [this transform]
@@ -93,7 +91,12 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (normalise [this transform]
  (let [top    (delay (apply max this))
        bottom (delay (apply min this))]
- (amap ^doubles this idx ret (double (normalise (aget ^doubles this idx) #(transform % [top bottom])))))))  
+ (amap ^doubles this idx ret (double (normalise (aget ^doubles this idx) #(transform % [top bottom])))))))
+ 
+(extend-protocol Normalisable   
+(Class/forName "[[D")  ;;2d double-arrays are very common
+(normalise [this transform]
+ (into-array (mapv #(normalise % transform) this))))     
    
 (extend-protocol Normalisable   
 (Class/forName "[F")  
@@ -101,6 +104,11 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
  (let [top    (delay (apply max this))
        bottom (delay (apply min this))]
  (amap ^floats this idx ret (float (normalise (aget ^floats this idx) #(transform % [top bottom])))))))
+ 
+(extend-protocol Normalisable   
+(Class/forName "[[F")  ;;2d float-arrays are very common
+(normalise [this transform]
+ (into-array (mapv #(normalise % transform) this))))   
    
 (extend-protocol Normalisable   
 (Class/forName "[J")  
@@ -108,6 +116,11 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
  (let [top    (delay (apply max this))
        bottom (delay (apply min this))]
  (amap ^longs this idx ret (long (normalise (aget ^longs this idx) #(transform % [top bottom])))))))
+ 
+(extend-protocol Normalisable   
+(Class/forName "[[J")  ;;2d long-arrays are very common
+(normalise [this transform]
+ (into-array (mapv #(normalise % transform) this))))   
       
 (extend-protocol Normalisable   
 (Class/forName "[I")  
@@ -115,6 +128,11 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
  (let [top    (delay (apply max this))
        bottom (delay (apply min this))]
  (amap ^ints this idx ret (int (normalise (aget ^ints this idx) #(transform % [top bottom])))))))
+ 
+(extend-protocol Normalisable   
+(Class/forName "[[I")  ;;2d int-arrays are also very common
+(normalise [this transform]
+ (into-array (mapv #(normalise % transform) this))))   
   
 (extend-protocol Normalisable   
 (Class/forName "[Ljava.lang.Object;")  
@@ -122,6 +140,11 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
  (let [top    (delay (apply max this))
        bottom (delay (apply min this))]
  (amap #^"[Ljava.lang.Object;" this idx ret (normalise (aget #^"[Ljava.lang.Object;" this idx) #(transform % [top bottom]))))))
+ 
+(extend-protocol Normalisable   
+(Class/forName "[Ljava.lang.String;")  
+(normalise [this transform]
+ (amap #^"[Ljava.lang.String;" this idx ret (normalise (aget #^"[Ljava.lang.String;" this idx) #(transform % nil)))))  
    
    
 ;;this is how client code would look like   
