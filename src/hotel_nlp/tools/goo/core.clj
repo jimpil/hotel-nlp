@@ -24,7 +24,7 @@
 [{:keys [from to subject text password host ssl? port]}]
   (let [auth (proxy [Authenticator] []
                (getPasswordAuthentication []
-                 (PasswordAuthentication. from password)))
+                 (PasswordAuthentication. from password)))          
         props (doto (Properties.)
                 (.putAll {"mail.smtp.user" from
                           "mail.smtp.host" host
@@ -35,7 +35,7 @@
         msg (doto (MimeMessage. session)
               (.setText text)
               (.setSubject subject)
-              (.setFrom (InternetAddress. from)))]
+              (.setFrom (InternetAddress. from))) ] 
     (doseq [addr to]
       (.addRecipient msg Message$RecipientType/TO (InternetAddress. addr)))
     (Transport/send msg)))
@@ -45,7 +45,7 @@
  (mail 
    (merge opt-map {:host "smtp.gmail.com" 
                    :ssl? true 
-                   :port 584})))
+                   :port 587})))
                           
 ;example  
 #_(gmail {:from "jimpil1985@gmail.com"
