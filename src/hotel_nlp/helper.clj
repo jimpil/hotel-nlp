@@ -495,7 +495,7 @@ ordering."
 
 (defn map->properties 
 "Converts a Map<String, String> to a java.util.Properties object."
-[property-value-map]
+[^java.util.Map property-value-map]
  {:pre [(every? #(every? string? %) property-value-map)]} 
   (doto (java.util.Properties.)
     (.putAll property-value-map)))
