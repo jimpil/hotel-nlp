@@ -8,6 +8,7 @@
  		 [org.clojure/data.zip "0.1.1"]
  		 [org.clojure/tools.nrepl "0.2.2"]
  		 [org.clojure/math.combinatorics "0.0.4"]
+ 		 [org.clojure/core.memoize "0.5.5"]
  		 [javax.mail/mail "1.4.3"]
  		 ;[weissjeffm/clojure.prxml "1.3.0-SNAPSHOT"]
                  ;[org.clojure/tools.cli "0.2.2"]
@@ -33,11 +34,12 @@
                  [jgraph/jgraph "5.13.0.0"]
                  [org.flatland/ordered "1.5.1"]
                  ]
-  :jvm-opts ["-Xmx3g" "-server"  ;;ideally need 3GB for stanford-corenlp
+  :jvm-opts ^:replace 
+            ["-Xmx3g" "-server"  ;;ideally need 3GB for stanford-corenlp
              "-XX:+OptimizeStringConcat" 
              "-XX:-UseCompressedOops" 
              "-XX:+UseStringCache"
-             "-XX:+UseParallelGC" "-XX:+UseParallelOldGC" "-XX:+DoEscapeAnalysis"
+             ;"-XX:+UseParallelGC" "-XX:+UseParallelOldGC" "-XX:+DoEscapeAnalysis"
              ;"-DWNSEARCHDIR=/home/dimitris/WordNet-3.0/dict/" ;;need this for jwnl.jar and opennlp-coref
             ]
   ;:jar-name           ; name of the jar produced by 'lein jar'
