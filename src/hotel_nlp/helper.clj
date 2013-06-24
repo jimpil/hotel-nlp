@@ -578,3 +578,33 @@ ordering."
   (opennlp.treebank/phrases
   (opennlp.tools.filters/noun-phrases chunks)))
   
+(defn avg 
+([samples n]
+  (/ (reduce + samples) n))
+([samples] 
+ (avg samples (count samples))) )
+
+(defn variance 
+(^double [samples n]
+ (let [mean (avg samples n)
+       intermediates (map #(Math/pow (- %1 mean) 2) samples)]
+  (/ (reduce + intermediates) n)))
+(^double [samples] 
+  (variance samples (count samples)))  ) 
+ 
+(definline std-dev "Computes the standard-deviation of a 1-dimensional dataset."
+ [samples]
+ `(Math/sqrt (variance ~samples)))
+ 
+(defn corr-coefficient "Correlation coefficient of 2 1-dimensional datasets." 
+[[d1 d2]]
+(assert (= (count d1) (count d2)) "The data-sets provided do not have the same size...")
+(let [size (count d1)]
+(* (/ 1 size) 
+   (reduce-kv #(+ %1 (* (/ (- %2 (avg d1 size)) (std-dev d1)) 
+                        (/ (- %3 (avg d2 size)) (std-dev d2)))) 0 (zipmap d1 d2)))) )
+  
+  
+  
+  
+  
