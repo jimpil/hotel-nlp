@@ -20,9 +20,10 @@
 (defn brute-force "Tries a brute-force attack of a collection of the specified size. check-pred should return the match when it finds one, otherwise nil." 
 ([target-size check-pred & possibilities]
 (let [all-poss (reduce #(into % (get-in token-types (-> %2 list flatten) :numbers)) #{} possibilities)
-      perms (combi/selections all-poss target-size)
-      answers (help/pool-map check-pred perms 4)] 
- (some #(when % %) answers)))
+      ;perms (combi/selections all-poss target-size)
+      ;answers (help/pool-map check-pred (combi/selections all-poss target-size) 4)
+      ] 
+ (some #(when % %) (help/pool-map check-pred (combi/selections all-poss target-size) 4))))
 ([check-pred possibilities] 
   (apply brute-force 4 check-pred possibilities)) )
   
