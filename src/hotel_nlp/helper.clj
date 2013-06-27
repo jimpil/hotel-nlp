@@ -302,17 +302,17 @@ only when there's a non-map at a particular level.
 `(= (dim-no ~coll) 1))
 
 (defn matrix ;;construct matrix (2d, 3d or 4d)
-([n m]  (for [i (range n) 
-              j (range m)] 
+([n m]  (for [i (range (inc n)) 
+              j (range (inc m))] 
          [i j]))
-([n m z] (for [i (range n) 
-               j (range m)
-               k (range z)] 
+([n m z] (for [i (range (inc n)) 
+               j (range (inc m))
+               k (range (inc z))] 
          [i j k]))
-([n m z h] (for [i (range n) 
-                 j (range m)
-                 k (range z)
-                 w (range h)] 
+([n m z h] (for [i (range (inc n)) 
+                 j (range (inc m))
+                 k (range (inc z))
+                 w (range (inc h))] 
          [i j k w])))
          
 (defn range-vmatrix [dim & dim-lengths]
