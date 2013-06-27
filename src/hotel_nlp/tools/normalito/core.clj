@@ -17,12 +17,39 @@
 (getCorrelation [this other]))        
 
 ;;High-performance extension points for all major Clojure data-structures including arrays [ints, floats, longs & doubles]
-;;in general, whatever collection type you pass in, the same type you will get back unless nothing covers it, in which case a lazy-seq will be most likely returned.
-;;If you pass a non-persistent java.util.List object, you'll get an ArrayList back. In addition, operations that are not 'safe' for integers, doubles will be used.
+;;in general, whatever collection type you pass in, the same type you will get back unless nothing covers it (in which case a lazy-seq will be most likely returned)
+;;or it is not safe to do so (i.e operations that are not 'safe' for integers). 
 ;;This has a performance consequence when for example normalisation is performed on an array of ints. In order to do all arithmetic operations correctly, ints have to 
-;;be converted to doubles which involves an extra array initialisation step. The same applies when askign the standard-deviation of ints for instance. 
+;;be converted to doubles which involves an extra array initialisation step. The same applies when asking the standard-deviation of ints for instance. 
 ;;For this reason always prefer persistent collections (vectors can do parallel normalisation) or arrays of doubles for maximum serial performance.    
-;;Nested colelctions work as well. Only 2 dimensions are supported for primitive arrays and 1 dimension for boxed arrays.
+;;Nested collections work as well. Up to 2 dimensions are supported for primitive arrays and a single dimension for boxed arrays.
+
+;; NORMALISATION INPUT/OUTPUT TYPES
+;-----------------------------------
+; Number -> Number
+; String -> String
+; Collection -> ArrayList  (just-in-case extension) 
+; IPersistentCollection -> LazySeq  (just-in-case extension)
+; PersistentList -> PersistentList  (slower than the rest as it requires 2 passes)
+; LazySeq -> LazySeq
+; IPersistentVector -> IPersistentVector
+; IPersistentSet -> IPersistentSet
+; IPersistentMap -> IPersistentMap
+; double-array1D -> double-array1D
+; double-array2D -> double-array2D
+; float-array1D -> float-array1D
+; float-array2D -> float-array2D
+; long-array1D -> double-array1D
+; long-array2D -> double-array2D
+; int-array1D -> float-array1D
+; int-array2D -> float-array2D
+; Double-array -> Double-array
+; Float-array -> Float-array
+; Long-array -> Double-array
+; Integer-array -> Float-array
+;-----------------------------------
+
+
 (extend-protocol DataSet     
 Number
 (normalise [this transform] 
@@ -39,7 +66,7 @@ Number
 String
 (normalise [this stem] 
   (stem this))
-(getMean [this] 
+(getMean [this] java.util.Collection
   (throw (IllegalStateException.  "'Mean' only makes sense for numbers!")))
 (getVariance [this] 
   (throw (IllegalStateException.  "'Variance' only makes sense for numbers!")))
@@ -91,7 +118,7 @@ clojure.lang.PersistentList
 (getMean [this] 
   (help/avg this))
 (getVariance [this] 
-  (help/variance this))
+  (help/variance this (count this)))
 (getStdDeviation [this]
   (Math/sqrt (getVariance this)))
 (getCorrelation [this other]
@@ -117,11 +144,11 @@ clojure.lang.IPersistentVector
 (mapv #(normalise % transform) this)
   (if (> 1124 (count this))     
    (mapv (fn [x] (normalise x #(transform % this))) this)
-   (into [] (r/foldcat (r/map (fn [x] (normalise x #(transform % this))) this))))) )
+   (into [] (r/foldcat (r/map (fn [x] (normalise x #(transform % this))) this))))) ) ;;opportunity for parallelism
 (getMean [this] 
   (help/avg this))
 (getVariance [this] 
-  (help/variance this))
+  (help/variance this (count this)))
 (getStdDeviation [this]
   (Math/sqrt (getVariance this)))
 (getCorrelation [this other]
@@ -136,7 +163,7 @@ clojure.lang.IPersistentSet ;;sets are typically not ordered so ordering will di
 (getMean [this] 
   (help/avg this))
 (getVariance [this] 
-  (help/variance this))
+  (help/variance this (count this)))
 (getStdDeviation [this]
   (Math/sqrt (getVariance this)))
 (getCorrelation [this other]
@@ -157,8 +184,8 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
                           (help/variance %3))) (transient {}) this))
 (getStdDeviation [this]
   (persistent!        
-   (reduce-kv #(assoc! %1 (help/std-dev %2) 
-                          (help/std-dev %3))) (transient {}) this))
+   (reduce-kv #(assoc! %1 (Math/sqrt (getVariance %2)) 
+                          (Math/sqrt (getVariance %3)))) (transient {}) this))
 (getCorrelation [this _] ;;there is no 'other' dataset; each map-entry holds 2 data-sets
  (for [[k v] this]
   (help/corr-coefficient [k v])))   )
@@ -190,7 +217,9 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (getVariance [this]
   (into-array (map #(getVariance %) this)))
 (getStdDeviation [this]
-  (into-array (map #(getStdDeviation %) this)))  )     
+  (into-array (map #(getStdDeviation %) this)))
+(getCorrelation [this _] ;;we already have many arrays-let's assume client is asking for the correlation of the 1st array with repsect to all the rest
+  (mapv #(help/corr-coefficient [(first this) %]) (next this)))  ) 
    
 (extend-protocol DataSet   
 (Class/forName "[F")  
@@ -215,7 +244,9 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (getVariance [this]
   (into-array (map #(getVariance %) this)))
 (getStdDeviation [this]
-  (into-array (map #(getStdDeviation %) this)))  )   
+  (into-array (map #(getStdDeviation %) this)))
+(getCorrelation [this _] ;;we already have 2 arrays
+  (mapv #(help/corr-coefficient [(first this) %]) (next this)) )  )   
    
 (extend-protocol DataSet   
 (Class/forName "[J")  
@@ -240,7 +271,9 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (getVariance [this]
   (into-array (map #(getVariance %) this)))
 (getStdDeviation [this]
-  (into-array (map #(getStdDeviation %) this)))  )   
+  (into-array (map #(getStdDeviation %) this)))
+(getCorrelation [this _] ;;we already have 2 arrays
+  (mapv #(help/corr-coefficient [(first this) %]) (next this)))  )   
       
 (extend-protocol DataSet 
 (Class/forName "[I")  
@@ -266,7 +299,9 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (getVariance [this]
   (into-array (map #(getVariance %) this)))
 (getStdDeviation [this]
-  (into-array (map #(getStdDeviation %) this))) )   
+  (into-array (map #(getStdDeviation %) this)))
+(getCorrelation [this _] ;;we already have 2 arrays
+  (mapv #(help/corr-coefficient [(first this) %]) (next this)))  )   
   
 (extend-protocol DataSet   
 (Class/forName "[Ljava.lang.Double;")  
@@ -282,9 +317,9 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (getCorrelation [this other]
   (help/corr-coefficient [this other]))  )
   
-(extend-protocol DataSet   
+(extend-protocol DataSet  
 (Class/forName "[Ljava.lang.Long;")  
-(normalise [this transform]
+(normalise [this transform] ;;returns a double-array
   (normalise (double-array this) transform))
 (getMean [this] 
   (/ (areduce #^"[Ljava.lang.Long;" this i ret (Long. 0) (+ ret (aget #^"[Ljava.lang.Long;" this i))) 
@@ -298,7 +333,7 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
   
 (extend-protocol DataSet   
 (Class/forName "[Ljava.lang.Integer;")  
-(normalise [this transform]
+(normalise [this transform] ;;returns a float-array
  (normalise (float-array this) transform))  
 (getMean [this] 
   (/ (areduce #^"[Ljava.lang.Integer;" this i ret (int 0) (int (+ ret (aget #^"[Ljava.lang.Integer;" this i)))) 
@@ -313,15 +348,15 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (extend-protocol DataSet   
 (Class/forName "[Ljava.lang.String;")  
 (normalise [this transform]
- (amap #^"[Ljava.lang.Long;" this idx ret (normalise (aget #^"[Ljava.lang.String;" this idx) #(transform % this))))
+ (amap #^"[Ljava.lang.String;" this idx ret (normalise (aget #^"[Ljava.lang.String;" this idx) #(transform % this))))
 (getMean [this] 
-  (throw (IllegalStateException.  "'Mean' only makes sense for a collection/array of numbers!")))
+  (throw (IllegalStateException.  "'Mean' only makes sense for a collection or array of numbers!")))
 (getVariance [this] 
-  (throw (IllegalStateException.  "'Variance' only makes sense for a collection/array of  numbers!")))
+  (throw (IllegalStateException.  "'Variance' only makes sense for a collection or array of  numbers!")))
 (getStdDeviation [this]
-  (throw (IllegalStateException.  "'Standard-deviation' only makes sense for a collection/array of numbers!")))
+  (throw (IllegalStateException.  "'Standard-deviation' only makes sense for a collection or array of numbers!")))
 (getCorrelation [this other]
-  (throw (IllegalStateException.  "'Pearson's correlation-coefficient only makes sense for a collection/array of numbers!"))) )      
+  (throw (IllegalStateException.  "'Pearson's correlation-coefficient only makes sense for a collection or array of numbers!"))) )      
    
    
 ;;this is how client code would look like
@@ -344,7 +379,7 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 ;typical in-range transformers
 (def transform-in-range1 "In-range [-1 1] transformer." in-range-formula)
 (def transform-in-range5 "In-range [-5 5] transformer." #(in-range-formula %1 %2 [-5 5]))
-(def transform-in-rangeLAZY "in-range transformer [-1 1] for a massive lazy-seq." #(in-range-formula %1 %2 [-1 1] [-5000000 5000000]))
+(def transform-in-rangeLAZY "in-range transformer [-1 1] for a big lazy-seq which we can't afford to apply min/max." #(in-range-formula %1 %2 [-1 1] [-50000 50000]))
 ;(normalise (range -5000000 5000000) transform-in-rangeLAZY)
 
 ;;RECIPROCAL formula
@@ -409,14 +444,30 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
  [zfactor (if (or (Double/isInfinite synthetic-field)
                   (Double/isNaN synthetic-field)) 0 synthetic-field)]))
    
-(def z-axis-needs (memo/ttl z-axis-needs* :ttl/threshold 3000)) ;;configure the cashing threshold according to your needs 
+(def z-axis-needs (memo/ttl z-axis-needs* :ttl/threshold 3000)) ;;configure the caching threshold according to your needs 
  
 (defn z-axis-formula 
 ([x coll _]
  (let [[zfactor synthetic-field]  (z-axis-needs coll)] 
   (+ synthetic-field (* x zfactor))))
 ([x coll] 
- (z-axis-formula x coll nil)) )     
+ (z-axis-formula x coll nil)) )  
+ 
+ 
+(comment
+;benchmarks
+
+(def sdata (range -500 500))
+(def bdata (range -50000 50000))
+(def vdata (vec sdata))
+(def adata (double-array vdata))
+
+(time (mapv #(transform-in-range5 % vdata ) vdata)) ;;30ms
+(time (map #(transform-in-rangeLAZY % bdata [-50000 50000]) bdata))
+
+(time (amap ^doubles adata idx ret (transform-in-range5 (aget ^doubles adata idx))))
+
+)    
 
  
    
