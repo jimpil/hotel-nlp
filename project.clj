@@ -33,6 +33,7 @@
                  [net.sf.jgrapht/jgrapht "0.8.3"] 
                  [jgraph/jgraph "5.13.0.0"]
                  [org.flatland/ordered "1.5.1"]
+                 [instaparse "1.1.0"]
                  ]
   :jvm-opts ^:replace 
             ["-Xmx3g" "-server"  ;;ideally need 3GB for stanford-corenlp
