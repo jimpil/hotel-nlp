@@ -223,6 +223,14 @@ only when there's a non-map at a particular level.
 [cl-name & args]
  `(eval (list 'new ~cl-name ~@args)))
  
+(defn new-instance "Create a new instance of the specified class using reflection."
+ [^Class c & args]
+  (if args
+    (.newInstance
+      (.getConstructor c (into-array (map class args)))
+      (to-array args))
+    (.newInstance c))) 
+ 
 (with-test 
 (defn un-capitalize ^String [^String s]
 (if (every? #(Character/isUpperCase ^Character %) s) s 
