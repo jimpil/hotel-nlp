@@ -28,7 +28,8 @@
 ;-----------------------------------
 ; Number -> Number
 ; String -> String
-; Collection -> ArrayList  (just-in-case extension) 
+; Collection -> whatever concrete type was passed in  (just-in-case extension & for interop)
+; Map -> IPersistentMap  (just-in-case extension)
 ; IPersistentCollection -> LazySeq  (just-in-case extension)
 ; PersistentList -> PersistentList  (slower than the rest as it requires 2 passes)
 ; LazySeq -> LazySeq
@@ -75,15 +76,15 @@ String
 (getCorrelation [this other]
   (throw (IllegalStateException.  "'Correlation-coefficient' only makes sense for numbers!")))   
   
-java.util.List ;;if this fires, we're dealing with a Java list-like collection - return a java.util.ArrayList
+java.util.Collection ;;if this fires, we're dealing with a Java Collection - return whatever was passed in
 (normalise [this transform]
 (if (instance? java.util.Collection (first this))
 (mapv #(normalise % transform) this)
   (reduce 
-    (fn [^java.util.List l x] 
-     (doto l 
-      (.add (normalise x #(transform % this))))) 
-  (java.util.ArrayList. (.size this)) this)) )
+    (fn [^java.util.Collection c x] 
+     (doto c 
+      (.add (normalise x #(transform % this)))))  
+  (help/instantiate (class this) (.size this)) this))) 
 (getMean [this] 
   (help/avg this (.size this)))
 (getVariance [this] 
@@ -93,7 +94,7 @@ java.util.List ;;if this fires, we're dealing with a Java list-like collection -
 (getCorrelation [this other]
   (help/corr-coefficient [this other]))       
   
-clojure.lang.IPersistentCollection;;if this fires, we don't know the type so we'll return a lazy-seq
+clojure.lang.IPersistentCollection;;if this fires, we don't know the type but it doesn't matter - return a lazy-seq
 (normalise [this transform]
 (if (instance? java.util.Collection (first this))
 (map #(normalise % transform ) this)
@@ -159,7 +160,9 @@ clojure.lang.IPersistentSet ;;sets are typically not ordered so ordering will di
 (if (instance? java.util.Collection (first this))
 (mapv #(normalise % transform) this)
  (persistent!        
-   (reduce (fn [ts x] (conj! ts (normalise x #(transform % this)))) (transient #{}) this))) )
+   (reduce (fn [ts x] 
+             (conj! ts (normalise x #(transform % this)))) 
+     (transient #{}) this))) )
 (getMean [this] 
   (help/avg this))
 (getVariance [this] 
@@ -167,7 +170,19 @@ clojure.lang.IPersistentSet ;;sets are typically not ordered so ordering will di
 (getStdDeviation [this]
   (Math/sqrt (getVariance this)))
 (getCorrelation [this other]
-  (help/corr-coefficient [this other]))      
+  (help/corr-coefficient [this other]))
+  
+java.util.Map  ;;again.just-in-case extension point
+(normalise [this transform]
+ (normalise (into {} this) transform))
+(getMean [this]
+ (getMean (into {} this)))
+(getVariance [this]
+  (getVariance (into {} this)))
+(getStdDeviation [this]
+  (getStdDeviation (into {} this)))
+(getCorrelation [this _]
+ (getCorrelation (into {} this) nil))             
    
 clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND values (a dataset perhaps?)
 (normalise [this transform]
@@ -177,15 +192,15 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (getMean [this]
   (persistent!        
    (reduce-kv #(assoc! %1 (help/avg %2) 
-                          (help/avg %3))) (transient {}) this))
+                          (help/avg %3)) (transient {}) this)))
 (getVariance [this] 
   (persistent!        
    (reduce-kv #(assoc! %1 (help/variance %2) 
-                          (help/variance %3))) (transient {}) this))
+                          (help/variance %3)) (transient {}) this)))
 (getStdDeviation [this]
   (persistent!        
    (reduce-kv #(assoc! %1 (Math/sqrt (getVariance %2)) 
-                          (Math/sqrt (getVariance %3)))) (transient {}) this))
+                          (Math/sqrt (getVariance %3))) (transient {}) this)))
 (getCorrelation [this _] ;;there is no 'other' dataset; each map-entry holds 2 data-sets
  (for [[k v] this]
   (help/corr-coefficient [k v])))   )
@@ -466,6 +481,11 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (time (map #(transform-in-rangeLAZY % bdata [-50000 50000]) bdata))
 
 (time (amap ^doubles adata idx ret (transform-in-range5 (aget ^doubles adata idx))))
+
+(normalise (java.util.Vector. [-5 -4 -3 -2 -1 1 2 3 4 5]))
+
+(.newInstance (.getConstructor java.util.Vector (into-array [Integer/TYPE]))
+      (into-array Object [(int 4)]))
 
 )    
 
