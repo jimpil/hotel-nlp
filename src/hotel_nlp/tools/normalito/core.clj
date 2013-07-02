@@ -84,7 +84,7 @@ java.util.Collection ;;if this fires, we're dealing with a Java Collection - ret
     (fn [^java.util.Collection c x] 
      (doto c 
       (.add (normalise x #(transform % this)))))  
-  (help/instantiate (class this) (.size this)) this))) 
+  (help/new-instance (class this) (.size this)) this))) 
 (getMean [this] 
   (help/avg this (.size this)))
 (getVariance [this] 
@@ -386,8 +386,8 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
    (* (/ (- x  bi) 
          (- ti bi)) 
       (- tn bn))) ))
-([x coll [bn tn]] 
-  (in-range-formula x coll [-1 1] nil))
+([x coll bottom-top] 
+  (in-range-formula x coll bottom-top nil))
 ([x coll] 
   (in-range-formula x coll [-1 1])) )
 
