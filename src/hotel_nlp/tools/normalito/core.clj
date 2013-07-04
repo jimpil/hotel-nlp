@@ -84,7 +84,8 @@ java.util.Collection ;;if this fires, we're dealing with a Java Collection - ret
     (fn [^java.util.Collection c x] 
      (doto c 
       (.add (normalise x #(transform % this)))))  
-  (help/new-instance (class this) (.size this)) this))) 
+  (try (help/new-instance (class this) (.size this))
+  (catch Exception _ (help/new-instance (class this)))) this))) 
 (getMean [this] 
   (help/avg this (.size this)))
 (getVariance [this] 
@@ -483,9 +484,6 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (time (amap ^doubles adata idx ret (transform-in-range5 (aget ^doubles adata idx))))
 
 (normalise (java.util.Vector. [-5 -4 -3 -2 -1 1 2 3 4 5]))
-
-(.newInstance (.getConstructor java.util.Vector (into-array [Integer/TYPE]))
-      (into-array Object [(int 4)]))
 
 )    
 
