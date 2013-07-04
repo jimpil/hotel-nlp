@@ -225,11 +225,10 @@ only when there's a non-map at a particular level.
  
 (defn new-instance "Create a new instance of the specified class using reflection."
  [^Class c & args]
-  (if args
+  (if (empty? args) (.newInstance c)
     (.newInstance
       (.getConstructor c (into-array (map class args)))
-      (to-array args))
-    (.newInstance c))) 
+      (to-array args)))) 
  
 (with-test 
 (defn un-capitalize ^String [^String s]
