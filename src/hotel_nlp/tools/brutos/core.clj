@@ -1,9 +1,12 @@
 (ns hotel_nlp.tools.brutos.core
-   (:require [clojure.pprint :refer [pprint]]
+   (:require ;[clojure.pprint :refer [pprint]]
              [hotel_nlp.helper    :as help]
              [clojure.math.combinatorics :as combi] 
-             [clojure.core.reducers :as r]
-             #_[clojure.test :refer [with-test is testing run-tests]]) )
+             ;[clojure.core.reducers :as r]
+             ;[clojure.test :refer [with-test is testing run-tests]]
+  ))
+  
+(def ^:dynamic *default-lengh* 4)  
              
 (def token-types
  {:numbers (->> 10 range (apply str) seq) 
@@ -17,24 +20,28 @@
  `(when-let [x# (~tester ~candidate)] x#))               
              
              
-(defn brute-force "Tries a brute-force attack of a collection of the specified size. check-pred should return the match when it finds one, otherwise nil." 
+(defn brute-force 
+"Tries a brute-force attack of a collection of the specified size. 'check-pred' should return the match when/if it finds one, otherwise nil." 
 ([target-size check-pred & possibilities]
-(let [all-poss (reduce #(into % (get-in token-types (-> %2 list flatten) :numbers)) #{} possibilities)
-      ;perms (combi/selections all-poss target-size)
-      ;answers (help/pool-map check-pred (combi/selections all-poss target-size) 4)
-      ] 
- (some #(when % %) (help/pool-map check-pred (combi/selections all-poss target-size) 4))))
-([check-pred possibilities] 
-  (apply brute-force 4 check-pred possibilities)) )
+(let [all-poss (reduce #(into % (get-in token-types (-> %2 list flatten) :numbers)) #{} possibilities)] 
+  (some identity (help/mapr check-pred (combi/selections all-poss target-size)))))
+([{:keys [target-size check-pred possibilities]}] 
+  (apply brute-force target-size check-pred possibilities)) )
+  
   
 (defn pred-builder [^String target-value]
  (partial generic-pred 
-   #(when (= % (seq target-value)) 
-     (apply str %))))  
+   #(when (= % (seq target-value)) (apply str %))))  
+
+(comment 
   
 (def PIN-pred "a dummy predicate for PINs. Returns the matching PIN"
- (pred-builder "64275555"))
+ (pred-builder "64271938"))
 
-;(brute-force PIN-pred [:numbers])
-;(brute-force 8 PIN-pred :numbers) 
-;(brute-force 8 PIN-pred :numbers [:letters :lower] :fancy)               
+(brute-force {:target-size 8 
+              :check-pred PIN-pred 
+              :possibilities [:numbers]}) 
+
+(brute-force 8 PIN-pred :numbers [:letters :lower] :fancy)  
+
+)             
