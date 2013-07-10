@@ -405,7 +405,7 @@ ordering."
  (let [exec (Executors/newFixedThreadPool threads)
        pool (ExecutorCompletionService. exec)
        futures (try (mapv (fn [x] (.submit pool #(f x))) coll)
-               (finally (.shutdown exec)))] 
+               (finally (.shutdown exec)))]             
 (repeatedly (count futures) #(.. pool take get))))
 ([f coll] 
   (pool-map f coll (+ 2 cpu-no))))   
