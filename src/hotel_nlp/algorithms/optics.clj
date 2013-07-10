@@ -27,11 +27,15 @@ The list of neighbors is sorted by their distance from point i."
         (r/filter #(and (< (val %) eps) (not= (key %) i))
                 (zipmap (range (count a)) 
                         (dist a (icore/sel a :rows i))))))
-
+                        
+    
 (defn- core-distance "Determines core distance based on a map of neighbors and min required number of points"
 [nbrs min-pts]   
   (if (< (count nbrs) min-pts)  nil 
-    (last (nth (seq nbrs) (dec min-pts)))))
+    (-> nbrs 
+      seq 
+     (nth (dec min-pts)) 
+      second) ))    
 
 (defn- p-enq 
 "Enqueue nbrs of a core object into priority queue pq using cd to determine 
@@ -95,14 +99,14 @@ then no new elementes are enqueued. Re-enqueues object if it's rd decreased."
   
 (comment   
 ;; *** test data ***
-(def M1 (icore/matrix [[15 70] [31 87] [45 32] [5 8] [73 9]
-                       [32 83] [26 50] [7 31] [43 97] [97 9]]))
+(def M1 (icore/matrix [[15 70] [31 87] [45 32] [5   8] [73 9]
+                       [32 83] [26 50] [7  31] [43 97] [97 9]]))
 
 (def M2 (icore/matrix (concat (istat/sample-normal 500 :sd 0.4) 
                               (istat/sample-normal 500 :mean 1 :sd 0.5)) 2)) 
                               
 (rd-plot (optics M1 50 3))
-(rd-plot (optics M12 1 5))
+(rd-plot (optics M2 1 5))
 
                                
 )  
