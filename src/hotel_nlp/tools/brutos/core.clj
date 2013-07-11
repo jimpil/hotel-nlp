@@ -5,8 +5,6 @@
              ;[clojure.core.reducers :as r]
              ;[clojure.test :refer [with-test is testing run-tests]]
   ))
-  
-(def ^:dynamic *default-lengh* 4)  
              
 (def token-types
  {:numbers (->> 10 range (apply str) seq) 
