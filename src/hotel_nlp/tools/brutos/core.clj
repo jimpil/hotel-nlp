@@ -34,12 +34,12 @@
 (comment 
   
 (def PIN-pred "a dummy predicate for PINs. Returns the matching PIN"
- (pred-builder "64271938"))
+ (pred-builder "261589"))
 
-(brute-force {:target-size 8 
+(brute-force {:target-size 6 
               :check-pred PIN-pred 
               :possibilities [:numbers]}) 
 
-(brute-force 8 PIN-pred :numbers [:letters :lower] :fancy)  
+(brute-force 6 PIN-pred :numbers [:letters :lower])  
 
 )             
