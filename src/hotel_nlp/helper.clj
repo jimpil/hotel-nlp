@@ -586,32 +586,33 @@ ordering."
   (opennlp.tools.filters/noun-phrases chunks)))
   
 (defn avg 
-([samples n]
-  (/ (reduce + samples) n))
-([samples] 
- (avg samples (count samples))) )
+(^double [xs n]
+  (/ (reduce + xs) n))
+(^double [xs] 
+ (avg xs (count xs))) )
 
-(defn variance 
-(^double [samples n]
- (let [mean (avg samples n)
-       intermediates (map #(Math/pow (- %1 mean) 2) samples)]
-  (/ (reduce + intermediates) n)))
-(^double [samples] 
-  (variance samples (count samples)))  ) 
- 
-(definline std-dev "Computes the standard-deviation of a 1-dimensional dataset."
- [samples]
- `(Math/sqrt (variance ~samples)))
- 
-(defn corr-coefficient "Correlation coefficient of 2 1-dimensional datasets." 
-[[d1 d2]]
-(assert (= (count d1) (count d2)) "The data-sets provided do not have the same size...")
-(let [size (count d1)]
-(* (/ 1 size) 
-   (reduce-kv #(+ %1 (* (/ (- %2 (avg d1 size)) (std-dev d1)) 
-                        (/ (- %3 (avg d2 size)) (std-dev d2)))) 0 (zipmap d1 d2)))) )
-  
-  
-  
+(defn variance "Calculates the variance drawn from a sample of a population."
+(^double [xs sample? n]
+ (let [mean (avg xs n)
+       intermediates (map #(Math/pow (- % mean) 2) xs)]
+  (/ (reduce + intermediates) (if sample? (dec n) n))))
+(^double [xs sample?] 
+  (variance xs sample? (count xs)))
+(^double [xs]  ;;assume complete population (not sample)
+  (variance xs false))    )  
+    
+(definline std-dev "Computes the standard-deviation of a 1-dimensional sampled dataset."
+ [xs sample?]
+ `(Math/sqrt (variance ~xs ~sample?)))
+
+(defn corr-coefficient "Correlation coefficient of 2 1-dimensional datasets."
+([d1 d2 sample?]
+  (assert (= (count d1) (count d2)) "The data-sets provided do not have the same size...")
+  (let [size (count d1)]
+    (* (/ 1 size) 
+       (reduce-kv #(+ %1 (* (/ (- %2 (avg d1 size)) (std-dev d1 sample?))
+                            (/ (- %3 (avg d2 size)) (std-dev d2 sample?)))) 0 (zipmap d1 d2)))))
+([d1 d2] (corr-coefficient d1 d2 nil)) )                       
+                          
   
   
