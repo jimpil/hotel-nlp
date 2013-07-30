@@ -12,9 +12,12 @@
 (defprotocol DataSet "A dataset should be able to perform these basic operations."
 (normalise [this transformer])
 (getMean [this])
-(getVariance [this])
-(getStdDeviation [this])
-(getCorrelation [this other]))        
+(getVariance [this] 
+             [this sample?])
+(getStdDeviation [this] 
+                 [this sample?])
+(getCorrelation [this other] 
+                [this other sample?]))        
 
 ;;High-performance extension points for all major Clojure data-structures including arrays [ints, floats, longs & doubles]
 ;;in general, whatever collection type you pass in, the same type you will get back unless nothing covers it (in which case a lazy-seq will be most likely returned)
@@ -50,64 +53,71 @@
 ; Integer-array -> Float-array
 ;-----------------------------------
 
-
 (extend-protocol DataSet     
 Number
-(normalise [this transform] 
-  (transform this))
-(getMean [this] 
-  (throw (IllegalStateException. "Cannot calculate the mean of a single number!")))
-(getVariance [this] 
-  (throw (IllegalStateException. "Cannot calculate the variance of a single number!")))
-(getStdDeviation [this]
-  (throw (IllegalStateException. "Cannot calculate the standard-deviation of a single number!")))
-(getCorrelation [this other]
-  (throw (IllegalStateException. "Cannot calculate the correlation-coefficient of a single number!")))    
+(normalise [this transform]  (transform this))
+(getMean [this] (throw (IllegalStateException. "Cannot calculate the mean of a single number!")))  
+(getVariance 
+  ([this]   (throw (IllegalStateException. "Cannot calculate the variance of a single number!")))
+  ([this _] (throw (IllegalStateException. "Cannot calculate the variance of a single number!"))))  
+(getStdDeviation 
+  ([this]   (throw (IllegalStateException. "Cannot calculate the standard-deviation of a single number!")))
+  ([this _] (throw (IllegalStateException. "Cannot calculate the standard-deviation of a single number!"))))  
+(getCorrelation 
+  ([this other]   (throw (IllegalStateException. "Cannot calculate the correlation-coefficient of a single number!")))
+  ([this other _] (throw (IllegalStateException. "Cannot calculate the correlation-coefficient of a single number!"))))      
   
 String
-(normalise [this stem] 
-  (stem this))
-(getMean [this] java.util.Collection
-  (throw (IllegalStateException.  "'Mean' only makes sense for numbers!")))
-(getVariance [this] 
-  (throw (IllegalStateException.  "'Variance' only makes sense for numbers!")))
-(getStdDeviation [this]
-  (throw (IllegalStateException.  "'Standard-deviation' only makes sense for numbers!")))
-(getCorrelation [this other]
-  (throw (IllegalStateException.  "'Correlation-coefficient' only makes sense for numbers!")))   
+(normalise [this stem] (stem this))
+(getMean [this]  (throw (IllegalStateException.  "'Mean' only makes sense for numbers!")))
+(getVariance 
+  ([this]   (throw (IllegalStateException.  "'Variance' only makes sense for numbers!")))
+  ([this _] (throw (IllegalStateException.  "'Variance' only makes sense for numbers!"))))  
+(getStdDeviation 
+  ([this]   (throw (IllegalStateException.  "'Standard-deviation' only makes sense for numbers!")))
+  ([this _] (throw (IllegalStateException.  "'Standard-deviation' only makes sense for numbers!"))))  
+(getCorrelation 
+  ([this other]   (throw (IllegalStateException.  "'Correlation-coefficient' only makes sense for numbers!")))  
+  ([this other _] (throw (IllegalStateException.  "'Correlation-coefficient' only makes sense for numbers!"))))     
   
 java.util.Collection ;;if this fires, we're dealing with a Java Collection - return whatever was passed in
 (normalise [this transform]
 (if (instance? java.util.Collection (first this))
-(mapv #(normalise % transform) this)
-  (reduce 
+(mapv #(normalise % transform) this) 
+ (clojure.lang.Reflector/invokeConstructor (class this) (to-array [this]))  
+  #_(reduce 
     (fn [^java.util.Collection c x] 
      (doto c 
       (.add (normalise x #(transform % this)))))  
   (try (help/new-instance (class this) (.size this))
   (catch Exception _ (help/new-instance (class this)))) this))) 
-(getMean [this] 
-  (help/avg this (.size this)))
-(getVariance [this] 
-  (help/variance this (.size this)))
-(getStdDeviation [this]
-  (Math/sqrt (getVariance this)))
-(getCorrelation [this other]
-  (help/corr-coefficient [this other]))       
+(getMean [this]  (help/avg this (.size this)))
+(getVariance 
+  ([this]         (getVariance this nil)) 
+  ([this sample?] (help/variance this sample? (.size this)))) 
+(getStdDeviation 
+  ([this]         (Math/sqrt (getVariance this)))
+  ([this sample?] (Math/sqrt (getVariance this sample?))))  
+(getCorrelation 
+  ([this other]         (getCorrelation this other nil))
+  ([this other sample?] (help/corr-coefficient this other sample?)))         
   
-clojure.lang.IPersistentCollection;;if this fires, we don't know the type but it doesn't matter - return a lazy-seq
+clojure.lang.IPersistentCollection  ;;if this fires, we don't know the type but it doesn't matter - return a lazy-seq
 (normalise [this transform]
 (if (instance? java.util.Collection (first this))
 (map #(normalise % transform ) this)
   (map (fn [x] (normalise x #(transform % this))) this)) )
-(getMean [this] 
-  (help/avg this))
-(getVariance [this] 
-  (help/variance this))
-(getStdDeviation [this]
-  (Math/sqrt (getVariance this)))
-(getCorrelation [this other]
-  (help/corr-coefficient [this other]))   
+(getMean [this] (help/avg this))
+(getVariance 
+  ([this]         (getVariance this nil)) 
+  ([this sample?] (help/variance this sample? (count this)))) 
+(getStdDeviation 
+  ([this]         (Math/sqrt (getVariance this)))
+  ([this sample?] (Math/sqrt (getVariance this sample?))))  
+(getCorrelation 
+  ([this other]         (getCorrelation this other nil)) 
+  ([this other sample?] (help/corr-coefficient this other sample?)))
+     
 
 clojure.lang.PersistentList
 (normalise
@@ -117,28 +127,32 @@ clojure.lang.PersistentList
   (->> (mapv (fn [x] (normalise x #(transform % this))) this)
      rseq
     (into '()))) ) 
-(getMean [this] 
-  (help/avg this))
-(getVariance [this] 
-  (help/variance this (count this)))
-(getStdDeviation [this]
-  (Math/sqrt (getVariance this)))
-(getCorrelation [this other]
-  (help/corr-coefficient [this other]))     
+(getMean [this] (help/avg this))
+(getVariance 
+  ([this]         (getVariance this nil)) 
+  ([this sample?] (help/variance this sample? (.size this)))) 
+(getStdDeviation 
+  ([this]         (Math/sqrt (getVariance this)))
+  ([this sample?] (Math/sqrt (getVariance this sample?))))  
+(getCorrelation 
+  ([this other]         (getCorrelation this other nil)) 
+  ([this other sample?] (help/corr-coefficient this other sample?)))    
     
 clojure.lang.LazySeq
 (normalise [this transform]
 (if (instance? java.util.Collection (first this))
 (map #(normalise % transform) this)
    (map (fn [x] (normalise x #(transform % this))) this)) )
-(getMean [this] 
-  (help/avg this))
-(getVariance [this] 
-  (help/variance this))
-(getStdDeviation [this]
-  (Math/sqrt (getVariance this)))
-(getCorrelation [this other]
-  (help/corr-coefficient [this other]))      
+(getMean [this] (help/avg this))
+(getVariance 
+  ([this]         (getVariance this nil)) 
+  ([this sample?] (help/variance this sample? (.size this)))) 
+(getStdDeviation 
+  ([this]         (Math/sqrt (getVariance this)))
+  ([this sample?] (Math/sqrt (getVariance this sample?))))  
+(getCorrelation 
+  ([this other]         (getCorrelation this other nil)) 
+  ([this other sample?] (help/corr-coefficient this other sample?)))     
       
 clojure.lang.IPersistentVector
 (normalise [this transform]
@@ -147,14 +161,16 @@ clojure.lang.IPersistentVector
   (if (> 1124 (count this))     
    (mapv (fn [x] (normalise x #(transform % this))) this)
    (into [] (r/foldcat (r/map (fn [x] (normalise x #(transform % this))) this))))) ) ;;opportunity for parallelism
-(getMean [this] 
-  (help/avg this))
-(getVariance [this] 
-  (help/variance this (count this)))
-(getStdDeviation [this]
-  (Math/sqrt (getVariance this)))
-(getCorrelation [this other]
-  (help/corr-coefficient [this other]))       
+(getMean [this] (help/avg this))
+(getVariance 
+  ([this]         (getVariance this nil)) 
+  ([this sample?] (help/variance this sample? (count this)))) 
+(getStdDeviation 
+  ([this]         (Math/sqrt (getVariance this)))
+  ([this sample?] (Math/sqrt (getVariance this sample?))))  
+(getCorrelation 
+  ([this other]         (getCorrelation this other nil)) 
+  ([this other sample?] (help/corr-coefficient this other sample?)))      
      
 clojure.lang.IPersistentSet ;;sets are typically not ordered so ordering will dissapear 
 (normalise [this transform]
@@ -164,26 +180,30 @@ clojure.lang.IPersistentSet ;;sets are typically not ordered so ordering will di
    (reduce (fn [ts x] 
              (conj! ts (normalise x #(transform % this)))) 
      (transient #{}) this))) )
-(getMean [this] 
-  (help/avg this))
-(getVariance [this] 
-  (help/variance this (count this)))
-(getStdDeviation [this]
-  (Math/sqrt (getVariance this)))
-(getCorrelation [this other]
-  (help/corr-coefficient [this other]))
+(getMean [this] (help/avg this))
+(getVariance 
+  ([this]         (getVariance this nil)) 
+  ([this sample?] (help/variance this sample? (count this)))) 
+(getStdDeviation 
+  ([this]         (Math/sqrt (getVariance this)))
+  ([this sample?] (Math/sqrt (getVariance this sample?))))  
+(getCorrelation 
+  ([this other]         (getCorrelation this other nil)) 
+  ([this other sample?] (help/corr-coefficient this other sample?)))
   
-java.util.Map  ;;again.just-in-case extension point
+java.util.Map  ;;again, a just-in-case extension point
 (normalise [this transform]
  (normalise (into {} this) transform))
-(getMean [this]
- (getMean (into {} this)))
-(getVariance [this]
-  (getVariance (into {} this)))
-(getStdDeviation [this]
-  (getStdDeviation (into {} this)))
-(getCorrelation [this _]
- (getCorrelation (into {} this) nil))             
+(getMean [this] (help/avg (into {} this)))
+(getVariance 
+  ([this]         (getVariance (into {} this) nil)) 
+  ([this sample?] (getVariance (into {} this) sample?))) 
+(getStdDeviation 
+  ([this]         (Math/sqrt (getVariance this)))
+  ([this sample?] (Math/sqrt (getVariance  this sample?))))  
+(getCorrelation 
+  ([this other]         (getCorrelation (into {} this) other nil)) 
+  ([this other sample?] (getCorrelation (into {} this) other sample?)))            
    
 clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND values (a dataset perhaps?)
 (normalise [this transform]
@@ -194,17 +214,23 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
   (persistent!        
    (reduce-kv #(assoc! %1 (help/avg %2) 
                           (help/avg %3)) (transient {}) this)))
-(getVariance [this] 
+(getVariance 
+  ([this] (getVariance this nil))
+  ([this samples?] 
   (persistent!        
-   (reduce-kv #(assoc! %1 (help/variance %2) 
-                          (help/variance %3)) (transient {}) this)))
-(getStdDeviation [this]
+   (reduce-kv #(assoc! %1 (help/variance %2 samples?) 
+                          (help/variance %3 samples?)) (transient {}) this))))
+(getStdDeviation
+  ([this] (getStdDeviation this nil)) 
+  ([this samples?]
   (persistent!        
-   (reduce-kv #(assoc! %1 (Math/sqrt (getVariance %2)) 
-                          (Math/sqrt (getVariance %3))) (transient {}) this)))
-(getCorrelation [this _] ;;there is no 'other' dataset; each map-entry holds 2 data-sets
- (for [[k v] this]
-  (help/corr-coefficient [k v])))   )
+   (reduce-kv #(assoc! %1 (Math/sqrt (getVariance %2 samples?)) 
+                          (Math/sqrt (getVariance %3 samples?))) (transient {}) this))))
+(getCorrelation 
+  ([this _] (getCorrelation this _ nil))
+  ([this _ samples?] ;;there is no 'other' dataset; each map-entry holds 2 data-sets
+   (persistent! 
+     (reduce-kv #(conj! % (help/corr-coefficient %2 %3 samples?)) (transient []) this))))  ) 
 
 ;;do the same for popular primitive array types   
 (extend-protocol DataSet   
@@ -214,28 +240,35 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (getMean [this] 
   (/ (areduce ^doubles this i ret 0.0 (+ ret (aget ^doubles this i))) 
      (alength ^doubles this)))
-(getVariance [this] 
+(getVariance 
+  ([this]  (getVariance this nil))     
+  ([this sample?] 
   (let [mean (getMean this)
         intermediates (amap ^doubles this idx ret (Math/pow (- (aget ^doubles this idx) mean) 2))]  
     (/ (areduce ^doubles intermediates i ret 0.0 (+ ret (aget ^doubles intermediates i))) 
-       (alength ^doubles this))))
-(getStdDeviation [this]
-  (Math/sqrt (getVariance this)))
-(getCorrelation [this other]
-  (help/corr-coefficient [this other])) )
+       (if sample? (dec (alength ^doubles this)) 
+                        (alength ^doubles this))))))
+(getStdDeviation 
+  ([this]         (Math/sqrt (getVariance this)))
+  ([this sample?] (Math/sqrt (getVariance this sample?))))  
+(getCorrelation 
+  ([this other]         (getCorrelation this other nil)) 
+  ([this other sample?] (help/corr-coefficient this other sample?))) )
  
 (extend-protocol DataSet   
 (Class/forName "[[D")  ;;2d double-arrays are very common
-(normalise [this transform]
-  (into-array (map #(normalise % transform) this)))
-(getMean [this]
-  (into-array (map #(getMean %) this)))
-(getVariance [this]
-  (into-array (map #(getVariance %) this)))
-(getStdDeviation [this]
-  (into-array (map #(getStdDeviation %) this)))
-(getCorrelation [this _] ;;we already have many arrays-let's assume client is asking for the correlation of the 1st array with repsect to all the rest
-  (mapv #(help/corr-coefficient [(first this) %]) (next this)))  ) 
+(normalise [this transform]  (into-array (map #(normalise % transform) this)))
+(getMean [this] (into-array (map #(getMean %) this)))
+(getVariance 
+  ([this]  (getVariance this nil))
+  ([this sample?] (into-array (map #(getVariance % sample?) this))))
+(getStdDeviation 
+  ([this] (getStdDeviation this nil))
+  ([this sample?] (into-array (map #(getStdDeviation % sample?) this))))
+(getCorrelation 
+  ([this _] (getCorrelation this _ nil))
+  ([this _ sample?] ;;we already have many arrays-let's assume user is asking for the correlation of the 1st array with repsect to all the rest
+  (mapv #(help/corr-coefficient [(first this) %] sample?) (next this))))  ) 
    
 (extend-protocol DataSet   
 (Class/forName "[F")  
@@ -244,12 +277,16 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (getMean [this] 
   (/ (areduce ^floats this i ret (float 0) (float (+ ret (aget ^floats this i)))) 
      (alength ^floats this)))
-(getVariance [this] 
-  (help/variance this (alength ^floats this)))
-(getStdDeviation [this]
-  (Math/sqrt (getVariance this)))
-(getCorrelation [this other]
-  (help/corr-coefficient [this other]))   )
+(getVariance 
+  ([this]  (getVariance this nil))     
+  ([this sample?] 
+  (help/variance sample? this (alength ^floats this))))
+(getStdDeviation 
+  ([this]         (Math/sqrt (getVariance this)))
+  ([this sample?] (Math/sqrt (getVariance this sample?))))  
+(getCorrelation 
+  ([this other]         (getCorrelation this other nil)) 
+  ([this other sample?] (help/corr-coefficient this other sample?))) )
  
 (extend-protocol DataSet   
 (Class/forName "[[F")  ;;2d float-arrays are very common
@@ -257,12 +294,16 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
   (into-array (map #(normalise % transform) this)))
 (getMean [this]
   (into-array (map #(getMean %) this)))
-(getVariance [this]
-  (into-array (map #(getVariance %) this)))
-(getStdDeviation [this]
-  (into-array (map #(getStdDeviation %) this)))
-(getCorrelation [this _] ;;we already have 2 arrays
-  (mapv #(help/corr-coefficient [(first this) %]) (next this)) )  )   
+(getVariance 
+  ([this]  (getVariance this nil))
+  ([this sample?] (into-array (map #(getVariance % sample?) this))))
+(getStdDeviation 
+  ([this] (getStdDeviation this nil))
+  ([this sample?] (into-array (map #(getStdDeviation % sample?) this))))
+(getCorrelation 
+  ([this _] (getCorrelation this _ nil))
+  ([this _ sample?] ;;we already have many arrays-let's assume user is asking for the correlation of the 1st array with repsect to all the rest
+  (mapv #(help/corr-coefficient [(first this) %] sample?) (next this))))  )   
    
 (extend-protocol DataSet   
 (Class/forName "[J")  
@@ -271,12 +312,16 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (getMean [this] 
   (/ (areduce ^longs this i ret 0 (+ ret (aget ^longs this i))) 
      (alength ^longs this)))
-(getVariance [this] 
-  (help/variance this (alength ^longs this)))
-(getStdDeviation [this]
-  (Math/sqrt (getVariance this)))
-(getCorrelation [this other]
-  (help/corr-coefficient [this other]))  )
+(getVariance 
+  ([this]  (getVariance this nil))     
+  ([this sample?] 
+  (help/variance sample? this (alength ^longs this))))
+(getStdDeviation 
+  ([this]         (Math/sqrt (getVariance this)))
+  ([this sample?] (Math/sqrt (getVariance this sample?))))  
+(getCorrelation 
+  ([this other]         (getCorrelation this other nil)) 
+  ([this other sample?] (help/corr-coefficient this other sample?))) )
  
 (extend-protocol DataSet   
 (Class/forName "[[J")  ;;2d long-arrays are very common
@@ -284,12 +329,16 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
  (into-array (map #(normalise % transform) this)))
 (getMean [this]
   (into-array (map #(getMean %) this)))
-(getVariance [this]
-  (into-array (map #(getVariance %) this)))
-(getStdDeviation [this]
-  (into-array (map #(getStdDeviation %) this)))
-(getCorrelation [this _] ;;we already have 2 arrays
-  (mapv #(help/corr-coefficient [(first this) %]) (next this)))  )   
+(getVariance 
+  ([this]  (getVariance this nil))
+  ([this sample?] (into-array (map #(getVariance % sample?) this))))
+(getStdDeviation 
+  ([this] (getStdDeviation this nil))
+  ([this sample?] (into-array (map #(getStdDeviation % sample?) this))))
+(getCorrelation 
+  ([this _] (getCorrelation this _ nil))
+  ([this _ sample?] ;;we already have many arrays-let's assume user is asking for the correlation of the 1st array with repsect to all the rest
+  (mapv #(help/corr-coefficient [(first this) %] sample?) (next this))))  )   
       
 (extend-protocol DataSet 
 (Class/forName "[I")  
@@ -298,12 +347,16 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (getMean [this] 
   (/ (areduce ^ints this i ret (int 0) (+ ret (aget ^ints this i))) 
      (alength ^ints this)))
-(getVariance [this] 
-  (help/variance this (alength ^ints this)))
-(getStdDeviation [this]
-  (Math/sqrt (getVariance this)))
-(getCorrelation [this other]
-  (help/corr-coefficient [this other])) )
+(getVariance 
+  ([this]  (getVariance this nil))     
+  ([this sample?] 
+  (help/variance sample? this (alength ^ints this))))
+(getStdDeviation 
+  ([this]         (Math/sqrt (getVariance this)))
+  ([this sample?] (Math/sqrt (getVariance this sample?))))  
+(getCorrelation 
+  ([this other]         (getCorrelation this other nil)) 
+  ([this other sample?] (help/corr-coefficient this other sample?))) )
   
 
 (extend-protocol DataSet   
@@ -312,12 +365,16 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
  (into-array (map #(normalise % transform) this))) 
 (getMean [this]
   (into-array (map #(getMean %) this)))
-(getVariance [this]
-  (into-array (map #(getVariance %) this)))
-(getStdDeviation [this]
-  (into-array (map #(getStdDeviation %) this)))
-(getCorrelation [this _] ;;we already have 2 arrays
-  (mapv #(help/corr-coefficient [(first this) %]) (next this)))  )   
+(getVariance 
+  ([this]  (getVariance this nil))
+  ([this sample?] (into-array (map #(getVariance % sample?) this))))
+(getStdDeviation 
+  ([this] (getStdDeviation this nil))
+  ([this sample?] (into-array (map #(getStdDeviation % sample?) this))))
+(getCorrelation 
+  ([this _] (getCorrelation this _ nil))
+  ([this _ sample?] ;;we already have many arrays-let's assume user is asking for the correlation of the 1st array with repsect to all the rest
+  (mapv #(help/corr-coefficient [(first this) %] sample?) (next this))))  )    
   
 (extend-protocol DataSet   
 (Class/forName "[Ljava.lang.Double;")  
@@ -326,12 +383,16 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (getMean [this] 
   (/ (areduce #^"[Ljava.lang.Double;" this i ret 0.0 (+ ret (aget #^"[Ljava.lang.Double;" this i))) 
      (alength #^"[Ljava.lang.Double;" this)))
-(getVariance [this] 
-  (help/variance this (alength #^"[Ljava.lang.Double;" this)))
-(getStdDeviation [this]
-  (Math/sqrt (getVariance this)))
-(getCorrelation [this other]
-  (help/corr-coefficient [this other]))  )
+(getVariance 
+  ([this]  (getVariance this nil))     
+  ([this sample?] 
+  (help/variance sample? this (alength #^"[Ljava.lang.Double;" this))))
+(getStdDeviation 
+  ([this]         (Math/sqrt (getVariance this)))
+  ([this sample?] (Math/sqrt (getVariance this sample?))))  
+(getCorrelation 
+  ([this other]         (getCorrelation this other nil)) 
+  ([this other sample?] (help/corr-coefficient this other sample?))) )     
   
 (extend-protocol DataSet  
 (Class/forName "[Ljava.lang.Long;")  
@@ -340,12 +401,16 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (getMean [this] 
   (/ (areduce #^"[Ljava.lang.Long;" this i ret (Long. 0) (+ ret (aget #^"[Ljava.lang.Long;" this i))) 
      (alength #^"[Ljava.lang.Long;" this)))
-(getVariance [this] 
-  (help/variance this (alength #^"[Ljava.lang.Long;" this)))
-(getStdDeviation [this]
-  (Math/sqrt (getVariance this)))
-(getCorrelation [this other]
-  (help/corr-coefficient [this other])) )
+(getVariance 
+  ([this]  (getVariance this nil))     
+  ([this sample?] 
+  (help/variance sample? this (alength #^"[Ljava.lang.Long;" this))))
+(getStdDeviation 
+  ([this]         (Math/sqrt (getVariance this)))
+  ([this sample?] (Math/sqrt (getVariance this sample?))))  
+(getCorrelation 
+  ([this other]         (getCorrelation this other nil)) 
+  ([this other sample?] (help/corr-coefficient this other sample?))) ) 
   
 (extend-protocol DataSet   
 (Class/forName "[Ljava.lang.Integer;")  
@@ -354,25 +419,31 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 (getMean [this] 
   (/ (areduce #^"[Ljava.lang.Integer;" this i ret (int 0) (int (+ ret (aget #^"[Ljava.lang.Integer;" this i)))) 
      (alength #^"[Ljava.lang.Integer;" this)))
-(getVariance [this] 
-  (help/variance this (alength #^"[Ljava.lang.Integer;" this)))
-(getStdDeviation [this]
-  (Math/sqrt (getVariance this)))
-(getCorrelation [this other]
-  (help/corr-coefficient [this other]))  )     
+(getVariance 
+  ([this]  (getVariance this nil))     
+  ([this sample?] 
+  (help/variance sample? this (alength #^"[Ljava.lang.Integer;" this))))
+(getStdDeviation 
+  ([this]         (Math/sqrt (getVariance this)))
+  ([this sample?] (Math/sqrt (getVariance this sample?))))  
+(getCorrelation 
+  ([this other]         (getCorrelation this other nil)) 
+  ([this other sample?] (help/corr-coefficient this other sample?))) )  
   
 (extend-protocol DataSet   
 (Class/forName "[Ljava.lang.String;")  
 (normalise [this transform]
  (amap #^"[Ljava.lang.String;" this idx ret (normalise (aget #^"[Ljava.lang.String;" this idx) #(transform % this))))
-(getMean [this] 
-  (throw (IllegalStateException.  "'Mean' only makes sense for a collection or array of numbers!")))
-(getVariance [this] 
-  (throw (IllegalStateException.  "'Variance' only makes sense for a collection or array of  numbers!")))
-(getStdDeviation [this]
-  (throw (IllegalStateException.  "'Standard-deviation' only makes sense for a collection or array of numbers!")))
-(getCorrelation [this other]
-  (throw (IllegalStateException.  "'Pearson's correlation-coefficient only makes sense for a collection or array of numbers!"))) )      
+(getMean [this] (throw (IllegalStateException.  "'Mean' only makes sense for a collection or array of numbers!")))
+(getVariance 
+  ([this]   (throw (IllegalStateException.  "'Variance' only makes sense for numbers!")))
+  ([this _] (throw (IllegalStateException.  "'Variance' only makes sense for numbers!"))))  
+(getStdDeviation 
+  ([this]   (throw (IllegalStateException.  "'Standard-deviation' only makes sense for numbers!")))
+  ([this _] (throw (IllegalStateException.  "'Standard-deviation' only makes sense for numbers!"))))  
+(getCorrelation 
+  ([this other]   (throw (IllegalStateException.  "'Correlation-coefficient' only makes sense for numbers!")))  
+  ([this other _] (throw (IllegalStateException.  "'Correlation-coefficient' only makes sense for numbers!")))) ) 
    
    
 ;;this is how client code would look like
