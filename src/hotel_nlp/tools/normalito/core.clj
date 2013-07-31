@@ -79,18 +79,16 @@ String
 (getCorrelation 
   ([this other]   (throw (IllegalStateException.  "'Correlation-coefficient' only makes sense for numbers!")))  
   ([this other _] (throw (IllegalStateException.  "'Correlation-coefficient' only makes sense for numbers!"))))     
-  
+
 java.util.Collection ;;if this fires, we're dealing with a Java Collection - return whatever was passed in
 (normalise [this transform]
 (if (instance? java.util.Collection (first this))
-(mapv #(normalise % transform) this) 
- (clojure.lang.Reflector/invokeConstructor (class this) (to-array [this]))  
-  #_(reduce 
+(mapv #(normalise % transform) this)  
+  (reduce 
     (fn [^java.util.Collection c x] 
      (doto c 
       (.add (normalise x #(transform % this)))))  
-  (try (help/new-instance (class this) (.size this))
-  (catch Exception _ (help/new-instance (class this)))) this))) 
+  (clojure.lang.Reflector/invokeConstructor (class this) (to-array [(.size this)]))  this))) ;;all Collections have a ctor accepting the initial size by convention
 (getMean [this]  (help/avg this (.size this)))
 (getVariance 
   ([this]         (getVariance this nil)) 
@@ -100,9 +98,9 @@ java.util.Collection ;;if this fires, we're dealing with a Java Collection - ret
   ([this sample?] (Math/sqrt (getVariance this sample?))))  
 (getCorrelation 
   ([this other]         (getCorrelation this other nil))
-  ([this other sample?] (help/corr-coefficient this other sample?)))         
+  ([this other sample?] (help/corr-coefficient this other sample?)))   
   
-clojure.lang.IPersistentCollection  ;;if this fires, we don't know the type but it doesn't matter - return a lazy-seq
+clojure.lang.ASeq  ;;if this fires, we don't know the type but it doesn't matter - return a lazy-seq
 (normalise [this transform]
 (if (instance? java.util.Collection (first this))
 (map #(normalise % transform ) this)
@@ -116,8 +114,7 @@ clojure.lang.IPersistentCollection  ;;if this fires, we don't know the type but 
   ([this sample?] (Math/sqrt (getVariance this sample?))))  
 (getCorrelation 
   ([this other]         (getCorrelation this other nil)) 
-  ([this other sample?] (help/corr-coefficient this other sample?)))
-     
+  ([this other sample?] (help/corr-coefficient this other sample?)))    
 
 clojure.lang.PersistentList
 (normalise
@@ -136,7 +133,8 @@ clojure.lang.PersistentList
   ([this sample?] (Math/sqrt (getVariance this sample?))))  
 (getCorrelation 
   ([this other]         (getCorrelation this other nil)) 
-  ([this other sample?] (help/corr-coefficient this other sample?)))    
+  ([this other sample?] (help/corr-coefficient this other sample?))) 
+      
     
 clojure.lang.LazySeq
 (normalise [this transform]
@@ -152,9 +150,9 @@ clojure.lang.LazySeq
   ([this sample?] (Math/sqrt (getVariance this sample?))))  
 (getCorrelation 
   ([this other]         (getCorrelation this other nil)) 
-  ([this other sample?] (help/corr-coefficient this other sample?)))     
-      
-clojure.lang.IPersistentVector
+  ([this other sample?] (help/corr-coefficient this other sample?))) 
+  
+clojure.lang.APersistentVector
 (normalise [this transform]
 (if (instance? java.util.Collection (first this))
 (mapv #(normalise % transform) this)
@@ -170,9 +168,10 @@ clojure.lang.IPersistentVector
   ([this sample?] (Math/sqrt (getVariance this sample?))))  
 (getCorrelation 
   ([this other]         (getCorrelation this other nil)) 
-  ([this other sample?] (help/corr-coefficient this other sample?)))      
+  ([this other sample?] (help/corr-coefficient this other sample?)))       
+            
      
-clojure.lang.IPersistentSet ;;sets are typically not ordered so ordering will dissapear 
+clojure.lang.APersistentSet ;;sets are typically not ordered so ordering will dissapear 
 (normalise [this transform]
 (if (instance? java.util.Collection (first this))
 (mapv #(normalise % transform) this)
@@ -189,9 +188,10 @@ clojure.lang.IPersistentSet ;;sets are typically not ordered so ordering will di
   ([this sample?] (Math/sqrt (getVariance this sample?))))  
 (getCorrelation 
   ([this other]         (getCorrelation this other nil)) 
-  ([this other sample?] (help/corr-coefficient this other sample?)))
+  ([this other sample?] (help/corr-coefficient this other sample?))) 
   
-java.util.Map  ;;again, a just-in-case extension point
+  
+java.util.Map  ;;again, a just-in-case extension point that delegates to persistent maps
 (normalise [this transform]
  (normalise (into {} this) transform))
 (getMean [this] (help/avg (into {} this)))
@@ -203,9 +203,9 @@ java.util.Map  ;;again, a just-in-case extension point
   ([this sample?] (Math/sqrt (getVariance  this sample?))))  
 (getCorrelation 
   ([this other]         (getCorrelation (into {} this) other nil)) 
-  ([this other sample?] (getCorrelation (into {} this) other sample?)))            
+  ([this other sample?] (getCorrelation (into {} this) other sample?)))               
    
-clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND values (a dataset perhaps?)
+clojure.lang.APersistentMap ;;assuming a map with collections for keys AND values (a dataset perhaps?)
 (normalise [this transform]
  (persistent!        
    (reduce-kv #(assoc! %1 (normalise %2 transform) 
@@ -489,7 +489,7 @@ clojure.lang.IPersistentMap ;;assuming a map with collections for keys AND value
 ([x _ div-val]
    (/ x div-val))
 ([x _]
-  (divide-by-value-formula x nil 10)) )       
+  (divide-by-value-formula x nil 100)) )       
 
 ;typical divide-by-value transformers
 (def transform-by-value10 "Divide-by-10 transformer."  divide-by-value-formula)
