@@ -10,6 +10,7 @@
  		 [org.clojure/math.combinatorics "0.0.4"]
  		 [org.clojure/core.memoize "0.5.5"]
  		 [org.clojure/data.priority-map "0.0.2"]
+ 		 [org.clojure/data.generators "0.1.0"]
  		 [javax.mail/mail "1.4.3"]
  		 ;[weissjeffm/clojure.prxml "1.3.0-SNAPSHOT"]
                  ;[org.clojure/tools.cli "0.2.2"]
