@@ -356,11 +356,11 @@ IComponent
      (.annotate this ann) ann)))) 
 
 (defn- emit-IComponent-impls* [syms]
- (apply concat
+(apply concat
   (map
     (fn [s]
       [(symbol (str "edu.stanford.nlp.pipeline." s)) co-stub])
-    syms)) ) 
+    syms)))
 
 (defmacro ^:private emit-IComponent-impls [& syms]
   `(extend-protocol IComponent
