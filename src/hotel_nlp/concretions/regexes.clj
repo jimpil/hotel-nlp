@@ -42,4 +42,9 @@
     #"form(?:(?:s|ed|ing|ations?)?)" 
     #"suppress(?:e(?:s|d)?|ing|ions?)"
   ])
+  
+(def re-numbers "Regular expression capable of identifying numbers followed by their unit of measure." 
+ #"([0-9]+)\s*([a-zA-Z//]+)\s*"  )
+
+  
 
