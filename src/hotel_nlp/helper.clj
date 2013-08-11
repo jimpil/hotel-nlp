@@ -38,8 +38,7 @@
  (deploy [_ text intermediates?] 
     ((if intermediates? reductions reduce) 
       (fn [init c] (run c init)) text components))
- (deploy [this text] (deploy this text false))
- ;(deploy [this] (deploy this))                         
+ (deploy [this text] (deploy this text false))                         
 IComponent
  (link [this pos other]
    (Workflow. (link* this pos other)))
@@ -51,6 +50,20 @@ clojure.lang.IFn  ;;can act as an fn
     (deploy this arg))
   (applyTo [this args]
     (apply deploy this args)) ) 
+    
+(defmethod print-method Workflow [r, ^java.io.Writer w]
+  (.write w "hotel_nlp.helper.Workflow<")
+  (print (:components r))
+  ;(.write w ",")
+  ;(print (.snd r))
+  (.write w ">"))
+  
+(defmethod print-dup Workflow [r, ^java.io.Writer w]
+  (.write w "hotel_nlp.helper.Workflow<")
+  (print (:components r))
+  ;(.write w ",")
+  ;(print (.snd r))
+  (.write w ">"))        
     
 (defn- addC [cs pos c]
   (Workflow. (insert-at cs pos c))) 
