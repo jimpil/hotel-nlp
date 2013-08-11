@@ -43,8 +43,8 @@
  IStemmable
  (stem
   ([this] (stem this "english"))
-  ([this lang]
-    (let [stemmer (help/porter-stemmer lang)]
+  ([this lang]  (normalise this #(porter-formula % %2 lang))
+    #_(let [stemmer (help/porter-stemmer lang)]
       (map #(do 
               (doto stemmer 
                   (.setCurrent %) 
