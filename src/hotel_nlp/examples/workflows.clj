@@ -1,7 +1,6 @@
 (ns hotel_nlp.examples.workflows
    (:require  [hotel_nlp.protocols :refer :all]
               [hotel_nlp.externals.bindings :as bin]
-              ;[hotel_nlp.concretions.models]
               [hotel_nlp.concretions.artefacts :refer [reg-seg reg-tok stemmer brown-nltk-pos-probs abbreviation-extractor]]
               [hotel_nlp.algorithms.viterbi :as vit]
               [hotel_nlp.helper :as help]
@@ -12,7 +11,8 @@
               [opennlp.tools.filters :as fi]
               [opennlp.treebank :as trb]
    )
-   (:import [hotel_nlp.concretions.models Workflow HMM-POS-tagger])
+   (:import ;[hotel_nlp.helper Workflow] 
+            [hotel_nlp.concretions.models HMM-POS-tagger])
 )
 (def ^java.util.Properties s-properties (System/getProperties)) ;just in case we need them
 
@@ -25,7 +25,7 @@
 ;(bin/extend-opennlp :modules [[:ner bin/spans->strings] [:chunk bin/chunk->spans]])
 (bin/extend-stanford-core)
 (bin/extend-gate)
-(bin/extend-gimli-ner)
+;(bin/extend-gimli-ner)
 
 
 
@@ -57,7 +57,7 @@
 (defcomponent stanford-tok "stanford's revertible tokenizer"  (edu.stanford.nlp.pipeline.PTBTokenizerAnnotator. false))
 ;(defcomponent stanford-pos "stanford's maxent pos-tagger"     (edu.stanford.nlp.pipeline.POSTaggerAnnotator. false)) 
 
-(defcomponent gimli-bio-ner "the new gimli NER API" 
+#_(defcomponent gimli-bio-ner "the new gimli NER API" 
   (bin/gimli-Annotator 
    (bin/gimli-corpus pt.ua.tm.gimli.config.Constants$LabelFormat/BIO 
     pt.ua.tm.gimli.config.Constants$EntityType/protein))) 
