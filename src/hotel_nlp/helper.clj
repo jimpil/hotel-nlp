@@ -49,16 +49,17 @@ clojure.lang.IFn  ;;can act as an fn
   (invoke [this arg]
     (deploy this arg))
   (applyTo [this args]
-    (apply deploy this args)) ) 
+    (apply deploy this args))
+;Object    
+  ;(toString [this] 
+    ;(str "#hotel_nlp.helper.Workflow" {:components (:components this)})) 
+    ) 
     
-(defmethod print-method Workflow [r, ^java.io.Writer w]
-  (.write w "hotel_nlp.helper.Workflow<")
-  (print (:components r))
-  ;(.write w ",")
-  ;(print (.snd r))
-  (.write w ">"))
+#_(defmethod print-method Workflow [wf ^java.io.Writer w]
+  (.write w "#hotel_nlp.helper.Workflow")
+  (print-method {:components (:components wf)} w) )
   
-(defmethod print-dup Workflow [r, ^java.io.Writer w]
+#_(defmethod print-dup Workflow [r, ^java.io.Writer w]
   (.write w "hotel_nlp.helper.Workflow<")
   (print (:components r))
   ;(.write w ",")
@@ -627,5 +628,22 @@ ordering."
                             (/ (- %3 (avg d2 size)) (std-dev d2 sample?)))) 0 (zipmap d1 d2)))))
 ([d1 d2] (corr-coefficient d1 d2 nil)) )                       
                           
-  
+(def day->int "Mapping of days to ints according to the java.util.Calendar class" 
+{:MONDAY 2 :TUESDAY 3 :WEDNESDAY 4 :THURSDAY 5 :FRIDAY 6 :SATURDAY 7 :SUNDAY 1})           
+
+(defn is-today? ;; (is-today? 'MONDAY) 
+"Returns true/false depending on whether the first argument (a symbol) is equal with the name of today's name. If called with no arguments today's name will be returned.
+ (is-today? (is-today?)) will always return true ."
+([s ^java.util.GregorianCalendar instant]
+  (= (.get instant java.util.Calendar/DAY_OF_WEEK)
+      ((keyword s) day->int)))
+([s]
+  (is-today? s (java.util.Calendar/getInstance))) 
+([]  
+ (let [inst (java.util.Calendar/getInstance)
+       int-id (.get inst java.util.Calendar/DAY_OF_WEEK)]
+  (-> (some (fn [[k v]] (when (= v int-id) k)) day->int)
+    name 
+    symbol))) )
+
   
