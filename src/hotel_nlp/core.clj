@@ -1,9 +1,7 @@
 (ns hotel_nlp.core
-   (:require  [hotel_nlp.protocols :refer :all]
-              ;[hotel_nlp.externals.bindings :refer :all]
-             ; [hotel_nlp.concretions.models]
-              [hotel_nlp.helper :as help]
-   )
+   (:require  [clojure.tools.macro :refer [name-with-attributes]];;useful for writing def-something macros
+              [hotel_nlp.protocols :refer :all]
+              [hotel_nlp.helper :as help])
    (:import [hotel_nlp.helper Workflow])
 )
 
@@ -18,30 +16,28 @@
    (Workflow. (help/link* this pos other))) 
  (run [_ args] 
    (f args)))) 
+ 
+(defmacro defcomponent 
+"Defines a top-level Component with the specified name and optionally doc-string and attr-map on the var. 
+ The only thing this does over a plain 'def' is checking whether the last argument is a valid IComponent." 
+[name & args] 
+(let [[name attrs] (name-with-attributes name args)
+       c (first attrs)] ;;the actual component  
+`(do
+   (assert (component? ~c) (str "Not a valid IComponent : " ~c))
+   (def ~name ~c)) ))
+   
+   
+(defmacro defworkflow 
+"Defines a top-level Workflow with the specified name optionally doc-string and attr-map on the var.
+The only thing this does over a plain 'def' is checking whether the the list of components (the last arg) are all valid IComponents."  
+[name & args]
+(let [[name attrs] (name-with-attributes name args)]    
+`(let [cs-coll#  ~(vec attrs)] 
+   (assert (every? component? cs-coll#) "Can only accept IComponents")
+   (def ~name (Workflow. cs-coll# {:description (-> ~name meta :doc)} nil))) )) 
 
   
-(defmacro defcomponent
-"Defines a top-level Component with the specified name. 
- co must satisfy IComponent. The only thing this does over a plain 'def' is checking whether co is an actual Component." 
-([name co]
- (let [c (eval co)]  
-  (assert (component? c) "Not a valid IComponent")
- `(def ~name ~c)))
-([name doc-s co]
- (let [c (eval co)]  
-  (assert (component? c) "Not a valid IComponent")
- `(def ~name ~doc-s ~c))))    
- 
-
-(defmacro defworkflow 
-"Defines a top-level Workflow with the specified name containing the given Components. First element in components can be a doc-string for this workflow."  
-[name & components]
-(let [[doc & comps :as all] (eval (vec components)) 
-       cs  (if (string? doc) [comps true] [all false])
-       ds  (if (second cs) doc "Undocumented workflow.")]
-  (assert (every? component? (first cs)) "Can only accept IComponents")
-`(def ~(with-meta name (assoc (meta name) :doc ds)) 
-   (Workflow. '~(first cs) {:description ~ds} nil))))
   
 
   
