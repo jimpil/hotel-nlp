@@ -44,11 +44,28 @@
 (defn chunk->spans [^opennlp.tools.chunker.Chunker chunker  tokens tags]
 (.chunkAsSpans chunker (if (help/string-array? tokens) tokens (into-array ^String tokens)) 
                        (if (help/string-array? tokens) tags   (into-array ^String tags))))
+                       
+                       
+(defn- extend-openlp-doccat []
+(extend-type opennlp.tools.doccat.DocumentCategorizer ;;all document-categorizers
+IComponent
+(run 
+([this ^String document]
+ (run this document []))  
+([this ^String document tokens]
+(let [outcome (if (seq tokens)
+                (if (help/string-array? tokens) 
+                  (.categorize this ^"[Ljava.lang.String;" tokens) 
+                  (.categorize this ^"[Ljava.lang.String;" (into-array ^String tokens)))
+                (.categorize this document))]
+ (.getBestCategory this outcome))) )
+(link [this pos other] 
+  (help/linkage this pos other)) ) )                       
 
 
 (defn- extend-opennlp-ner 
 "Entry point for extending openNLP TokenNameFinder implementations to some key protocols (e.g. IComponent).
- Call this in your own namespace to make all openNLP-NER components symbiotic with cluja components." 
+ Call this in your own namespace to make all openNLP-NER components symbiotic with hotel_nlp components." 
 ([string-extractor]
 (extend-type opennlp.tools.namefind.TokenNameFinder ;; all NER modules of openNLP
 IComponent
@@ -210,7 +227,8 @@ IComponent
    :sent-detect extend-opennlp-sentDetectors
    :stem        extend-opennlp-stemmers
    :chunk       extend-opennlp-chunkers
-   :coref       extend-openlp-coref 
+   :coref       extend-openlp-coref
+   :doccat      extend-openlp-doccat 
    }) ;TODO
    
 (def opennlp-simple-tok (opennlp.tools.tokenize.SimpleTokenizer/INSTANCE))   
@@ -227,9 +245,15 @@ IComponent
 ([] (opennlp-me-pos "resources/pretrained_models/opennlp/en-pos-maxent.bin"))
 ([model-resource-path] 
  (opennlp.tools.postag.POSTaggerME. 
-   (opennlp.tools.postag.POSModel.
-   (FileInputStream.
-    (clojure.java.io/file model-resource-path))))))
+ (opennlp.tools.postag.POSModel.
+   (FileInputStream. (clojure.java.io/file model-resource-path))))))
+    
+(defn openlp-me-doccat
+([] (throw (IllegalStateException. "There is no pre-trained model for the DocumentCategorizer")))
+([model-path]
+ (opennlp.tools.doccat.DocumentCategorizerME. 
+ (opennlp.tools.doccat.DoccatModel. 
+   (FileInputStream. (clojure.java.io/file model-path))))))   
 
 (defn opennlp-me-ner 
 ([] (opennlp-me-ner "resources/pretrained_models/opennlp/en-ner-person.bin"))
