@@ -17,7 +17,19 @@
 (getStdDeviation [this] 
                  [this sample?])
 (getCorrelation [this other] 
-                [this other sample?]))        
+                [this other sample?])) 
+                
+#_(def ^:private commons "Common implementations across extension-points." 
+  {:mean '(getMean [this] (help/avg this))
+   :variance '(getVariance 
+                ([this]         (getVariance this nil)) 
+                ([this sample?] (help/variance this sample? (count this))))
+   :std '(getStdDeviation 
+           ([this]         (Math/sqrt (getVariance this)))
+           ([this sample?] (Math/sqrt (getVariance this sample?)))) 
+   :correlation  '(getCorrelation 
+                    ([this other]         (getCorrelation this other nil)) 
+                    ([this other sample?] (help/corr-coefficient this other sample?)))})                       
 
 ;;High-performance extension points for all major Clojure data-structures including arrays [ints, floats, longs & doubles]
 ;;in general, whatever collection type you pass in, the same type you will get back unless nothing covers it (in which case a lazy-seq will be most likely returned)
@@ -155,10 +167,8 @@ clojure.lang.LazySeq
 clojure.lang.APersistentVector
 (normalise [this transform]
 (if (instance? java.util.Collection (first this))
-(mapv #(normalise % transform) this)
-  (if (> 1124 (count this))     
-   (mapv (fn [x] (normalise x #(transform % this))) this)
-   (into [] (r/foldcat (r/map (fn [x] (normalise x #(transform % this))) this))))) ) ;;opportunity for parallelism
+  (mapv #(normalise % transform) this) 
+  (into [] (r/foldcat (r/map (fn [x] (normalise x #(transform % this))) this)))) ) ;;opportunity for parallelism
 (getMean [this] (help/avg this))
 (getVariance 
   ([this]         (getVariance this nil)) 
