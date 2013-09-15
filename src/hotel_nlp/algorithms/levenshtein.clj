@@ -29,7 +29,8 @@
 ([s1 s2] 
   (levenshtein-distance s1 s2 *substitution-cost*)))
 
-(defn fuzzy-match "Fuzzy string matching that scores according to the edit-distance."
+(defn fuzzy-match 
+"Fuzzy string matching that scores according to the edit-distance."
 ([s ss tolerance m-weight]
  (filter #(<= (levenshtein-distance s % m-weight) tolerance) ss))
 ([s ss tolerance]
