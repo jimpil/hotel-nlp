@@ -20,7 +20,7 @@
                  [edu.stanford.nlp/stanford-corenlp "1.3.4" :classifier "models"]
                  [org.apache.opennlp/opennlp-maxent "3.0.3"]
                  [experiment/experiment "1.5.3"] ;OPENNLP HACKED
-                 [clojure-opennlp "0.2.0" :exclusions [[org.apache.opennlp/opennlp-tools]]]
+                 [clojure-opennlp "0.3.1" :exclusions [[org.apache.opennlp/opennlp-tools]]]
                  [net.sf.jwordnet/jwnl "1.4_rc3"] ;latest wordnet
                  [uk.ac.gate/gate-core "7.1" :exclusions [[org.springframework/spring-beans]]]
                  [org.apache.lucene/lucene-snowball "3.0.3"]
@@ -35,7 +35,7 @@
                  [jgraph/jgraph "5.13.0.0"]
                  [org.flatland/ordered "1.5.1"]
                  [instaparse "1.1.0"]
-                 [incanter "1.5.1"] [leiningen "2.3.0"]
+                 [incanter "1.5.1"] ;[leiningen "2.3.0"]
                  ]
   :jvm-opts ^:replace 
             ["-Xmx3g" "-server"  ;;ideally need 3GB for stanford-corenlp
