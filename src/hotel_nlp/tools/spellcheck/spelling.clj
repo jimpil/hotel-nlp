@@ -12,7 +12,9 @@
  
 (defn train [features]
  (persistent!
-  (reduce (fn [model f] (assoc! model f (inc (get model f 1)))) (transient {}) features)))
+  (reduce (fn [model f] (assoc! model f (inc (get model f 1)))) 
+     (transient {}) 
+     features)))
  
 (def ^:dynamic *nwords* (train (words gutenberg))) 
  
@@ -30,13 +32,15 @@
  
 (definline known-edits2 [word nwords] 
 `(set (for [e1# (edits1 ~word) e2# (edits1 e1#) :when (~nwords e2#)]  e2#)))
+
+;;my code follows
  
 (definline correct [nwords word]
 `(let [ ed2s#  (future (known-edits2 ~word ~nwords))
         ed1s#  (known (edits1 ~word) ~nwords)      
         knowns#  (known [~word] ~nwords)
         candidates#  [knowns# ed1s# @ed2s# [~word]]]                 
-  (apply max-key #(get ~nwords % 1) (some #(when (seq %) %) candidates#)))) ;;get the first non-empty list
+  (apply max-key #(get ~nwords % 1) (some seq candidates#)))) ;;get the first non-empty list
   
 (def mem-correct (memoize #(correct *nwords* %))) 
 
@@ -45,12 +49,12 @@
        corrections []]
   (if (empty? entries) corrections ;;could be empty if no correction was found
   (let [f (first entries)] 
-   (recur (next entries) (if (>= 2 (levenshtein-distance (first entries) word 1))
-                                  (conj corrections (first entries)) corrections) )))))
+   (recur (next entries) (if (>= 2 (levenshtein-distance f word 1))
+                                  (conj corrections f) corrections) )))))
 
 ;(time (doall (for [s test-cases] (mem-correct s)))
  
-(defn correct-document "Process an entire document and get a map with the correctoin found." 
+(defn correct-document "Process an entire document and get a map with the corrections found." 
  [filename]
 (let [tokens (words (slurp filename))
       corrections (transient (hash-map))]
@@ -58,6 +62,20 @@
   (when (not= w c) ;;don't care about non-mistakes
    (assoc! corrections w c))) 
 (persistent! (assoc! corrections :count (count tokens)))) )
+
+(comment
+
+(->   
+(reduce 
+  (fn [init [w c]] 
+    (if (not= w c) 
+    (assoc! corrections w c) 
+    init))
+(transient {}) (help/rmap #(vector % (mem-correct %)) tokens 50 ))
+(assoc! :count (count tokens))
+persistent!) 
+
+)
     
 ;You can train on a different corpus in your namespace and use dynamic binding to re-assign *nwords*:
 
