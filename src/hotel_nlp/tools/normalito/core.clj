@@ -17,19 +17,7 @@
 (getStdDeviation [this] 
                  [this sample?])
 (getCorrelation [this other] 
-                [this other sample?])) 
-                
-#_(def ^:private commons "Common implementations across extension-points." 
-  {:mean '(getMean [this] (help/avg this))
-   :variance '(getVariance 
-                ([this]         (getVariance this nil)) 
-                ([this sample?] (help/variance this sample? (count this))))
-   :std '(getStdDeviation 
-           ([this]         (Math/sqrt (getVariance this)))
-           ([this sample?] (Math/sqrt (getVariance this sample?)))) 
-   :correlation  '(getCorrelation 
-                    ([this other]         (getCorrelation this other nil)) 
-                    ([this other sample?] (help/corr-coefficient this other sample?)))})                       
+                [this other sample?]))                      
 
 ;;High-performance extension points for all major Clojure data-structures including arrays [ints, floats, longs & doubles]
 ;;in general, whatever collection type you pass in, the same type you will get back unless nothing covers it (in which case a lazy-seq will be most likely returned)
@@ -45,12 +33,12 @@
 ; String -> String
 ; Collection -> whatever concrete type was passed in  (just-in-case extension & for interop)
 ; Map -> IPersistentMap  (just-in-case extension)
-; IPersistentCollection -> LazySeq  (just-in-case extension)
-; PersistentList -> PersistentList  (slower than the rest as it requires 2 passes)
+; ASeq -> LazySeq
 ; LazySeq -> LazySeq
-; IPersistentVector -> IPersistentVector
-; IPersistentSet -> IPersistentSet
-; IPersistentMap -> IPersistentMap
+; PersistentList -> LazySeq !<<---------ATTENTION!
+; APersistentVector -> PersistentVector
+; APersistentSet -> PersistentHashSet
+; APersistentMap -> PersistentHashMap
 ; double-array1D -> double-array1D
 ; double-array2D -> double-array2D
 ; float-array1D -> float-array1D
@@ -93,7 +81,7 @@ String
   ([this other _] (throw (IllegalStateException.  "'Correlation-coefficient' only makes sense for numbers!"))))     
 
 java.util.Collection ;;if this fires, we're dealing with a Java Collection - return whatever was passed in
-(normalise [this transform]
+(normalise [this transform]  ;(println "oops! shouldn't be here - collection")
 (if (instance? java.util.Collection (first this))
 (mapv #(normalise % transform) this)  
   (reduce 
@@ -113,7 +101,7 @@ java.util.Collection ;;if this fires, we're dealing with a Java Collection - ret
   ([this other sample?] (help/corr-coefficient this other sample?)))   
   
 clojure.lang.ASeq  ;;if this fires, we don't know the type but it doesn't matter - return a lazy-seq
-(normalise [this transform]
+(normalise [this transform]  ;(println "oops! shouldn't be here - aseq")
 (if (instance? java.util.Collection (first this))
 (map #(normalise % transform ) this)
   (map (fn [x] (normalise x #(transform % this))) this)) )
@@ -128,14 +116,11 @@ clojure.lang.ASeq  ;;if this fires, we don't know the type but it doesn't matter
   ([this other]         (getCorrelation this other nil)) 
   ([this other sample?] (help/corr-coefficient this other sample?)))    
 
-clojure.lang.PersistentList
-(normalise
-[this transform]
+clojure.lang.PersistentList ;;identical to lazy-seq extension
+(normalise [this transform]  
 (if (instance? java.util.Collection (first this))
-(mapv #(normalise % transform) this)
-  (->> (mapv (fn [x] (normalise x #(transform % this))) this)
-     rseq
-    (into '()))) ) 
+(map #(normalise % transform) this)
+   (map (fn [x] (normalise x #(transform % this))) this)) )
 (getMean [this] (help/avg this))
 (getVariance 
   ([this]         (getVariance this nil)) 
@@ -145,11 +130,10 @@ clojure.lang.PersistentList
   ([this sample?] (Math/sqrt (getVariance this sample?))))  
 (getCorrelation 
   ([this other]         (getCorrelation this other nil)) 
-  ([this other sample?] (help/corr-coefficient this other sample?))) 
-      
+  ([this other sample?] (help/corr-coefficient this other sample?)))       
     
 clojure.lang.LazySeq
-(normalise [this transform]
+(normalise [this transform]   ;(println "now in lazy-seq" )
 (if (instance? java.util.Collection (first this))
 (map #(normalise % transform) this)
    (map (fn [x] (normalise x #(transform % this))) this)) )
@@ -165,7 +149,7 @@ clojure.lang.LazySeq
   ([this other sample?] (help/corr-coefficient this other sample?))) 
   
 clojure.lang.APersistentVector
-(normalise [this transform]
+(normalise [this transform]   ;(println "now in p-vector" )
 (if (instance? java.util.Collection (first this))
   (mapv #(normalise % transform) this) 
   (into [] (r/foldcat (r/map (fn [x] (normalise x #(transform % this))) this)))) ) ;;opportunity for parallelism
@@ -182,7 +166,7 @@ clojure.lang.APersistentVector
             
      
 clojure.lang.APersistentSet ;;sets are typically not ordered so ordering will dissapear 
-(normalise [this transform]
+(normalise [this transform]  ;(println  "now in p-set")
 (if (instance? java.util.Collection (first this))
 (mapv #(normalise % transform) this)
  (persistent!        
@@ -202,7 +186,7 @@ clojure.lang.APersistentSet ;;sets are typically not ordered so ordering will di
   
   
 java.util.Map  ;;again, a just-in-case extension point that delegates to persistent maps
-(normalise [this transform]
+(normalise [this transform]  ;(println  "now in map" )
  (normalise (into {} this) transform))
 (getMean [this] (help/avg (into {} this)))
 (getVariance 
@@ -216,20 +200,20 @@ java.util.Map  ;;again, a just-in-case extension point that delegates to persist
   ([this other sample?] (getCorrelation (into {} this) other sample?)))               
    
 clojure.lang.APersistentMap ;;assuming a map with collections for keys AND values (a dataset perhaps?)
-(normalise [this transform]
+(normalise [this transform] ;(println  "now in p-map" )
  (persistent!        
    (reduce-kv #(assoc! %1 (normalise %2 transform) 
                           (normalise %3 transform)) (transient {}) this)))
 (getMean [this]
   (persistent!        
-   (reduce-kv #(assoc! %1 (help/avg %2) 
-                          (help/avg %3)) (transient {}) this)))
+   (reduce-kv #(assoc! %1 (getMean %2) 
+                          (getMean %3)) (transient {}) this)))
 (getVariance 
   ([this] (getVariance this nil))
   ([this samples?] 
   (persistent!        
-   (reduce-kv #(assoc! %1 (help/variance %2 samples?) 
-                          (help/variance %3 samples?)) (transient {}) this))))
+   (reduce-kv #(assoc! %1 (getVariance %2 samples?) 
+                          (getVariance %3 samples?)) (transient {}) this))))
 (getStdDeviation
   ([this] (getStdDeviation this nil)) 
   ([this samples?]
@@ -454,10 +438,11 @@ clojure.lang.APersistentMap ;;assuming a map with collections for keys AND value
 (getCorrelation 
   ([this other]   (throw (IllegalStateException.  "'Correlation-coefficient' only makes sense for numbers!")))  
   ([this other _] (throw (IllegalStateException.  "'Correlation-coefficient' only makes sense for numbers!")))) ) 
-   
+;;-----------------------------------------------------------------------------------------------------------------------   
    
 ;;this is how client code would look like
-(def in-range-needs (memo/ttl (juxt #(apply min %) #(apply max %)) :ttl/threshold 3000)) ;the upper/lower data limits
+(def in-range-needs (memo/ttl (juxt #(apply min %) 
+                                    #(apply max %)) :ttl/threshold 3000)) ;the upper/lower data limits
 
 ;;IN-RANGE formula  
 (defn in-range-formula 
@@ -481,11 +466,12 @@ clojure.lang.APersistentMap ;;assuming a map with collections for keys AND value
 
 ;;RECIPROCAL formula
 (defn reciprocal-formula 
-"Reciprocal normalization is always normalizing to a number in the range between 0 and 1.
- It should only be used to normalize numbers greater than 1. In particular, do NOT pass in 0 as the first arg."
+"Reciprocal normalization is always normalizing in the range between 0 and 1.
+ It is a very simple techniique which only makes sense for numbers > 1. 
+ In particular, do NOT try to pass in 0 as the first arg."
 ([x _ _]
  (if (> x 1)  (/ 1 x) 
-   (throw (IllegalArgumentException. "Reciprocal-formula cannot be used with values less than 1."))))
+   (throw (IllegalArgumentException. "Reciprocal-formula cannot be used with values less than 1 and especially not with 0."))))
 ([x _]
 (reciprocal-formula x _ nil))
 ([x] 
@@ -502,7 +488,7 @@ clojure.lang.APersistentMap ;;assuming a map with collections for keys AND value
   (divide-by-value-formula x nil 100)) )       
 
 ;typical divide-by-value transformers
-(def transform-by-value10 "Divide-by-10 transformer."  divide-by-value-formula)
+(def transform-by-value10 "Divide-by-100 transformer."  divide-by-value-formula) ;;perhaps useful for normalising percentages (78% = 0.78)
 (def transform-by-value2 "Divide-by-2 transformer."  #(divide-by-value-formula %1 %2 2))
 
 (defn porter-formula 
@@ -520,7 +506,7 @@ clojure.lang.APersistentMap ;;assuming a map with collections for keys AND value
 
 ;MULTIPLICATIVE formula
 (defn multiplicative-needs* ^double [coll] 
-  (/ 1.0 (Math/sqrt (reduce #(+ %1 (* %2 %2)) coll)))) ;;produces the multiplicative normalisation factor
+  (/ 1.0 (Math/sqrt (reduce #(+ % (* %2 %2)) 0 coll)))) ;;produces the multiplicative normalisation factor
   
 (def multiplicative-needs (memo/ttl multiplicative-needs* :ttl/threshold 3000)) ;;configure the caching threshold according to your needs 
 
