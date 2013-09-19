@@ -645,5 +645,21 @@ ordering."
   (-> (some (fn [[k v]] (when (= v int-id) k)) day->int)
     name 
     symbol))) )
+    
+(defn serialize! 
+"Serialize the object b on to the disk using standard Java serialization."
+[b ^String fname]
+(with-open [oout (java.io.ObjectOutputStream. 
+                  (java.io.FileOutputStream. fname))]
+  (.writeObject oout b)))
+                
+(defn deserialize! 
+"Deserializes the object in file f from the disk using standard Java serialization." 
+ [^String fname]
+(with-local-vars [upb nil]  ;;waiting for the value shortly
+  (with-open [oin (java.io.ObjectInputStream. 
+                   (java.io.FileInputStream. fname))] 
+     (var-set upb (.readObject oin)))
+       @upb))    
 
   
