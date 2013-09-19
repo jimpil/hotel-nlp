@@ -1,7 +1,7 @@
 (ns hotel_nlp.examples.workflows
    (:require  [hotel_nlp.protocols :refer :all]
               [hotel_nlp.externals.bindings :as bin]
-              [hotel_nlp.concretions.artefacts :refer [reg-seg reg-tok stemmer brown-nltk-pos-probs abbreviation-extractor]]
+              [hotel_nlp.concretions.artefacts :refer [reg-seg reg-tok stemmer brown-nltk-pos-probs abbreviation-extractor java-util-tokenizer+]]
               [hotel_nlp.algorithms.viterbi :as vit]
               [hotel_nlp.helper :as help]
               [hotel_nlp.core :refer [defcomponent defworkflow fn->component]]
