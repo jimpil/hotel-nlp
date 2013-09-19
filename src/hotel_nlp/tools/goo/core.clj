@@ -1,10 +1,9 @@
 (ns hotel_nlp.tools.goo.core
 (:require [hotel_nlp.helper :as help]
           [hotel_nlp.tools.crypto.core :as cry])
-(:import   (java.net URL URLEncoder)
-           javax.mail.internet.MimeMessage
-           (javax.mail.internet MimeMessage InternetAddress)
-           (javax.mail Session Transport Authenticator PasswordAuthentication Message$RecipientType)))
+(:import  [java.net URL URLEncoder] javax.mail.internet.MimeMessage
+          [javax.mail.internet MimeMessage InternetAddress]
+          [javax.mail Session Transport Authenticator PasswordAuthentication Message$RecipientType]))
            
 (set! *warn-on-reflection* true)           
 
@@ -16,21 +15,24 @@
                  (.setRequestProperty "User-Agent" *user-agent*))]
  (slurp (.getInputStream conn))))
 
-(defn goo-search [^String query]
+(defn goo-search "Perfrom a simple search with Google. Returns the html response as a string." 
+[^String query]
  (let [url (URL. (str google-search-url (URLEncoder/encode query)))]
   (get-response url)))
 
 ;usage:
-;(spit "response.html" (goo-search "clojure reducers"))
+;(spit "response.html" (goo-search "clojure reducers")) 
  
 (defn mail "Send email programmatically." 
 [{:keys [from to subject text password host ssl? port]}]
+{:pre [(string? from) (string? host)     (string? subject)  
+       (string? text) (string? password) (seq to)]}
   (let [auth (proxy [Authenticator] []
                (getPasswordAuthentication []
                  (PasswordAuthentication. from password)))          
         props (help/map->properties {"mail.smtp.user" from
                                      "mail.smtp.host" host
-                         	     "mail.smtp.starttls.enable" (if ssl? "true" "false")
+                         	     "mail.smtp.starttls.enable" (str ssl?)
                                      "mail.smtp.auth" "true"
                                      "mail.smtp.port" (str port)})
         session (Session/getInstance props auth)
@@ -40,7 +42,8 @@
               (.setFrom (InternetAddress. from))) ] 
     (doseq [addr to]
       (.addRecipient msg Message$RecipientType/TO (InternetAddress. addr)))
-    (Transport/send msg)))
+    (Transport/send msg)
+    (println (str "The e-mail titled <" subject "> has left the building..."))))
     
 (defn gmail "Send email with GMail." 
  [opt-map] 
@@ -51,7 +54,7 @@
 (comment                           
 ;example  
 (gmail {:from "jimpil1985@gmail.com"
-        :to ["piliourd@cs.man.ac.uk"]
+        :to ["piliourd@cs.man.ac.uk"] ;;has to be a seq even if there is only one recipient
         :subject "TEST-JAVAX.MAIL"
         :text "clojure says HI!"
         :password (let [[p s] (help/deserialize! "resources/G.bin")]
