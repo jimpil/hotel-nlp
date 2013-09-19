@@ -1,5 +1,6 @@
 (ns hotel_nlp.tools.goo.core
-(:require [hotel_nlp.helper :as help])
+(:require [hotel_nlp.helper :as help]
+          [hotel_nlp.tools.crypto.core :as cry])
 (:import   (java.net URL URLEncoder)
            javax.mail.internet.MimeMessage
            (javax.mail.internet MimeMessage InternetAddress)
@@ -46,12 +47,19 @@
  (mail 
    (merge opt-map {:host "smtp.gmail.com" 
                    :ssl? true 
-                   :port 587})))
-                          
+                   :port 587})))                 
+(comment                           
 ;example  
-#_(gmail {:from "jimpil1985@gmail.com"
-          :to ["piliourd@cs.man.ac.uk"]
-          :subject "TEST-JAVAX.MAIL"
-          :text "clojure says HI!"
-          :password "***"})     
+(gmail {:from "jimpil1985@gmail.com"
+        :to ["piliourd@cs.man.ac.uk"]
+        :subject "TEST-JAVAX.MAIL"
+        :text "clojure says HI!"
+        :password (let [[p s] (help/deserialize! "resources/G.bin")]
+                    (cry/decrypt p s)) })  
+                      
+)                      
+          
+
+
+             
   
