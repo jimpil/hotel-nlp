@@ -24,7 +24,7 @@
 )
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* true)
-(def cpu-no "Tne number of processors on this machine." (.. Runtime getRuntime availableProcessors))
+(defonce cpu-no "Tne number of processors on this machine." (.. Runtime getRuntime availableProcessors))
 
 (declare addC removeC replaceC insert-at remove-at link*)
   
