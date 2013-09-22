@@ -398541,4 +398541,10 @@ school/N
 the/DET
 break/N
 with/P
-t
+the/DET
+school/N
+is/V
+even/DET
+more/DET
+complete/ADJ
+./.
