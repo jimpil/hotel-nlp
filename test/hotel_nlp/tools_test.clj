@@ -25,7 +25,7 @@
   	  (=== should res)))
     (is (let [should '("eat" "kiss" "danc") 
               res (normalise '("eating" "kissing" "dancing") #(transform-by-porter % %2 "english"))]
-  	  (=== should res)))
+  	  (= should res))) ;;not the same classes with persistent list, cannot use ===
 (testing "Number normalisation..."    
   (is (= {[-1 -3/4 -1/2 -1/4 0N 1/4 1/2 3/4 1] [-3/13 -11/13 -7/13 -1 1]} 
          (normalise {(java.util.ArrayList. (range -4 5)) [-3 -7 -5 -8 5]} in-range-formula))) 
