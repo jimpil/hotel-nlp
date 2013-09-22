@@ -1,5 +1,5 @@
 (ns hotel_nlp.algorithms.levenshtein
-  (:require [clojure.test :refer [with-test is testing test]]))
+  (:require [clojure.test :refer [with-test is testing]]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* true)
