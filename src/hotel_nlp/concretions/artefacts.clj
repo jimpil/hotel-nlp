@@ -3,7 +3,7 @@
    	      [hotel_nlp.concretions.regexes :as re]
               [hotel_nlp.concretions.models]
    )
-   (:import [hotel_nlp.concretions.models RE-Tokenizer RE-Segmenter RE-Combiner RE-Abbrv PorterStemmer
+   (:import [hotel_nlp.concretions.models RE-Tokenizer RE-Segmenter RE-Combiner RE-Abbrv JA-Tokenizer PorterStemmer
              Ngrams LevenshteinDistance MapReduceMapper ForkJoinMapper PoolMapper SemiLazyMapper]
              [hotel_nlp.helper Workflow]
    
@@ -25,5 +25,7 @@
 (defonce brown-nltk-pos-probs (help/read-resource "corpora-train/BROWN-NLTK/brown-probs.txt"))
 (defonce pannotator-pluggable-sent-splitter  (Workflow. [reg-seg stick])) ;;replace reg-seg with your own sentence splitter
 (defonce abbreviation-extractor (RE-Abbrv. [re/re-abbreviation-paren re/re-term-paren] :string :map))
+(defonce java-util-tokenizer (JA-Tokenizer. nil nil :string :string-seq)) ;;the bare minimum
+(defonce java-util-tokenizer+ (JA-Tokenizer. " \t\n\r\f\\-\\.\\,\\!\\?" nil :string :string-seq));slightly better, delimites on common punctuation too.
 
 

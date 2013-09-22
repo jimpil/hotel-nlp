@@ -119,6 +119,23 @@ clojure.lang.IFn  ;;can act as an fn
     (tokenize this arg))
   (applyTo [this args]
     (apply tokenize this args))  ) 
+       
+(defrecord RE-Abbrv [regexes input output]
+IComponent
+(getIOTypes [_] {:input  input 
+                 :output output})  
+(run [this s] 
+  (if (string? s) 
+    (apply help/abbreviations-simple s regexes)
+    (map #(run this %) s)))
+(link [this pos other] 
+ (help/linkage this pos other))
+clojure.lang.IFn  ;;can act as an fn
+  (invoke [this arg]
+    (run this arg))
+  (applyTo [this args]
+    (apply run this args)) )    
+    
 ;----------------------------------------------------------------------------------------------------
 
 (defrecord Ngrams [n input output]
@@ -134,22 +151,26 @@ clojure.lang.IFn  ;;can act as an fn
   (applyTo [this args]
     (apply run this args)) )
 
-(defrecord RE-Abbrv [regexes input output]
+(defrecord JA-Tokenizer [^String delimiters return-delimiters? input output] ;;the java.util.StringTokenizer wrapped as a hotel-nlp component
+ITokenizer
+(tokenize [_ text]
+(enumeration-seq 
+  (java.util.StringTokenizer. ^String text (or delimiters " \t\n\r\f") ;;the default delimiters as seen in the official documentation
+                                           (boolean return-delimiters?))) )   
 IComponent
 (getIOTypes [_] {:input  input 
-                 :output output})  
-(run [this s] 
-  (if (string? s) 
-    (apply help/abbreviations-simple s regexes)
-    (map #(run this %) s)))
-(link [this pos other] 
- (help/linkage this pos other))
+                 :output output}) 
+(link [this pos other]
+  (help/linkage this pos other)) 
+(run [this sentence] 
+  (if (string? sentence) 
+  (tokenize this sentence) 
+  (map #(tokenize this %) sentence)))
 clojure.lang.IFn  ;;can act as an fn
   (invoke [this arg]
-    (run this arg))
+    (tokenize this arg))
   (applyTo [this args]
-    (apply run this args)) )
-
+    (apply tokenize this args)) ) 
 
 (defrecord PorterStemmer [lang input output]
 IStemmable
