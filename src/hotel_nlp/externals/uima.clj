@@ -119,7 +119,7 @@ This fn should accept a jcas and should be able to pull the processed data out o
 	:cas-initializer  (UIMAFramework/produceCasInitializer specifier additional-params)
 	:collection-processing-engine (UIMAFramework/produceCollectionProcessingEngine specifier additional-params)
 	:collection-reader (UIMAFramework/produceCollectionReader specifier additional-params)
-  :primitive-ae (produce-primitive specifier)))) ;;'specifier' here really means 'object-instance' and not xml as we're going through uima-fit
+        :primitive-ae (produce-primitive specifier)))) ;;'specifier' here really means 'object-instance' and not xml as we're going through uima-fit
 
 
 
@@ -157,9 +157,9 @@ This fn should accept a jcas and should be able to pull the processed data out o
 
 
 (defn uima-compatible 
-  "Given a component and a function to extract the desired input from the JCas, 
-  returns a UIMA compatible oblect that wraps the original component. For now the component must be able to act as a function.
-  The fn  'jcas-input-extractor' must accept 2 arguments [JCas, UIMAContext]." 
+"Given a component and a function to extract the desired input from the JCas, 
+ returns a UIMA compatible oblect that wraps the original component. For now the component must be able to act as a function.
+ The 'jcas-input-extractor' fn must accept 2 arguments [JCas, UIMAContext]." 
   ([component jcas-input-extractor jcas-writer config-map]
    (produce :analysis-engine  
     (AnalysisEngineFactory/createPrimitiveDescription UIMAProxy 
@@ -175,6 +175,7 @@ This fn should accept a jcas and should be able to pull the processed data out o
 ; (doto *1 (.setDocumentText  "My name is Jim and I like pizzas !"))
 ;(.process my-ae *1)
 
+;example of turning an UIMA xml descriptor into a function
 (def sample "All plants need light and water to grow!")
 (defn hmm-postag
  "A HMM POS-tagger capable of working not only with bigrams(n=2) but also trigrams(n=3).
@@ -195,7 +196,7 @@ This fn should accept a jcas and should be able to pull the processed data out o
         need-aggregate? (some empty? (vals proper-map))  ;;...here
         tagger (if need-aggregate?
                  (produce :analysis-engine (-> "HmmTaggerAggregate.xml" resource xml-resource) config)
-                 (produce :analysis-engine (-> "HmmTagger.xml" resource xml-resource) config))       
+                 (produce :analysis-engine (-> "HmmTagger.xml"          resource xml-resource) config))       
         jc (jcas tagger) ;;create a JCas from the tagger who knows about the annotation types
         pos-tag (fn [^String s ^JCas jc]
                     (.setDocumentText jc s)
@@ -228,20 +229,6 @@ This fn should accept a jcas and should be able to pull the processed data out o
   (doall (for [[token tag] ppairs]
             (Token. token tag))))) ) )
 
-
- #_(defn map->properties 
-  ([property-value-map]
-    (reduce-kv 
-      #(doto %1 (.setProperty %2 %3))
-     (java.util.Properties.) property-value-map))
-  ([] (map->properties {"MODEL_FILE" ""
-                        ;"DO_MAPPING" "true"
-                        ;"MAPPING" ""
-                        "FILE" "EXAMPLE.dat"
-                        "CORPUS_READER"  (-> my-corpus-reader class .getName)
-                        "GOLD_STANDARD" ""
-                        "N" "3"})))
-
 (comment
 
 (defn extend-uima []
@@ -261,9 +248,7 @@ This fn should accept a jcas and should be able to pull the processed data out o
       (inject-annotation! jc [Annotation b e])) )
 
 
-
-(uima-compatible my-tokenizer extractor post-fn)
-(def my-ae *1)
+(def my-ae (uima-compatible my-tokenizer extractor post-fn))
 (def sample "My name is Jim and I like pizzas !")
 (def jc (JCasFactory/createJCas))
 (.setDocumentText jc  sample)
