@@ -21,7 +21,7 @@
 
 ;;High-performance extension points for all major Clojure data-structures including arrays [ints, floats, longs & doubles]
 ;;in general, whatever collection type you pass in, the same type you will get back unless nothing covers it (in which case a lazy-seq will be most likely returned)
-;;or it is not safe to do so (i.e operations that are not 'safe' for integers). 
+;;or it is not safe to do so (i.e operations that are not 'safe' for integers) or it is not performant doing so. 
 ;;This has a performance consequence when for example normalisation is performed on an array of ints. In order to do all arithmetic operations correctly, ints have to 
 ;;be converted to doubles which involves an extra array initialisation step. The same applies when asking the standard-deviation of ints for instance. 
 ;;For this reason always prefer persistent collections (vectors can do parallel normalisation) or arrays of doubles for maximum serial performance.    
@@ -103,7 +103,7 @@ java.util.Collection ;;if this fires, we're dealing with a Java Collection - ret
 clojure.lang.ASeq  ;;if this fires, we don't know the type but it doesn't matter - return a lazy-seq
 (normalise [this transform]  ;(println "oops! shouldn't be here - aseq")
 (if (instance? java.util.Collection (first this))
-(map #(normalise % transform ) this)
+  (map #(normalise % transform ) this)
   (map (fn [x] (normalise x #(transform % this))) this)) )
 (getMean [this] (help/avg this))
 (getVariance 
@@ -116,10 +116,10 @@ clojure.lang.ASeq  ;;if this fires, we don't know the type but it doesn't matter
   ([this other]         (getCorrelation this other nil)) 
   ([this other sample?] (help/corr-coefficient this other sample?)))    
 
-clojure.lang.PersistentList ;;identical to lazy-seq extension
+clojure.lang.PersistentList ;;identical with above
 (normalise [this transform]  
 (if (instance? java.util.Collection (first this))
-(map #(normalise % transform) this)
+   (map #(normalise % transform) this)
    (map (fn [x] (normalise x #(transform % this))) this)) )
 (getMean [this] (help/avg this))
 (getVariance 
@@ -135,7 +135,7 @@ clojure.lang.PersistentList ;;identical to lazy-seq extension
 clojure.lang.LazySeq
 (normalise [this transform]   ;(println "now in lazy-seq" )
 (if (instance? java.util.Collection (first this))
-(map #(normalise % transform) this)
+  (map #(normalise % transform) this)
    (map (fn [x] (normalise x #(transform % this))) this)) )
 (getMean [this] (help/avg this))
 (getVariance 
