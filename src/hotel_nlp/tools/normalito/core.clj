@@ -88,7 +88,7 @@ java.util.Collection ;;if this fires, we're dealing with a Java Collection - ret
     (fn [^java.util.Collection c x] 
      (doto c 
       (.add (normalise x #(transform % this)))))  
-  (clojure.lang.Reflector/invokeConstructor (class this) (to-array [(.size this)]))  this))) ;;all Collections have a ctor accepting the initial size by convention
+     (help/empty+ this (.size this))  this))) ;;all Collections have a ctor accepting the initial size by convention
 (getMean [this]  (help/avg this (.size this)))
 (getVariance 
   ([this]         (getVariance this nil)) 

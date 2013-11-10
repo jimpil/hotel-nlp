@@ -192,7 +192,8 @@ IComponent
 IComponent
 (run [this tokens tags]
  (let [pf (or span-extractor #(.chunk ^opennlp.tools.chunker.Chunker  %1 ^"[Ljava.lang.String;" %2 ^"[Ljava.lang.String;" %3))]
- (if (and (help/two-d? tokens) (help/two-d? tags)) (map #(run this % %2) tokens tags)     
+ (if (and (help/two-d? tokens) (help/two-d? tags)) 
+  (map #(run this % %2) tokens tags)     
   (pf this (if (help/string-array? tokens) tokens (into-array ^String tokens)) 
             (if (help/string-array? tags)   tags   (into-array ^String tags)))))) ;;will return a String[]
 (link [this pos other] 

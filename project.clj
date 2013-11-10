@@ -6,9 +6,9 @@
   ;:repositories [["bioinformatics-all" "http://bioinformatics.ua.pt/maven/content/groups/public"]]  ;need this for gimli        
   :dependencies [[org.clojure/clojure "1.5.1"]
  		 [org.clojure/data.zip "0.1.1"]
- 		 [org.clojure/tools.nrepl "0.2.2"]
+ 		 [org.clojure/tools.nrepl "0.2.3"]
  		 [org.clojure/math.combinatorics "0.0.4"]
- 		 [org.clojure/core.memoize "0.5.5"]
+ 		 [org.clojure/core.memoize "0.5.6"]
  		 [org.clojure/data.priority-map "0.0.2"]
  		 [org.clojure/data.generators "0.1.0"]
  		 [javax.mail/mail "1.4.3"]
@@ -34,8 +34,10 @@
                  [net.sf.jgrapht/jgrapht "0.8.3"] 
                  [jgraph/jgraph "5.13.0.0"]
                  [org.flatland/ordered "1.5.1"]
-                 [instaparse "1.1.0"]
-                 [incanter "1.5.1"] ;[leiningen "2.3.0"]
+                 [instaparse "1.2.8"]
+                 [incanter "1.5.1"] 
+                 [rhizome "0.1.9"]
+                 [prismatic/plumbing "0.1.1"]
                  ]
   :jvm-opts ^:replace 
             ["-Xmx3g" "-server"  ;;ideally need 3GB for stanford-corenlp

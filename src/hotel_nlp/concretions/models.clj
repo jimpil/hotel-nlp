@@ -206,7 +206,7 @@ IComponent
 (run [this args] 
   (apply getDistance this args)) ;;args must be a seq
 (link [this pos other] 
- (Workflow. (help/link* this pos other)))
+ (help/linkage this pos other))
 clojure.lang.IFn  ;;can act as an fn
   (invoke [this arg1 arg2]
     (getDistance this arg1 arg2))
@@ -279,7 +279,7 @@ IComponent
    (map (partial predict this ps)  tokens)
    (predict this ps tokens))) ) 
 (link [this pos other] 
- (Workflow. (help/link* this pos other))) ) ;;construct and pass the map containing the vectors instead
+ (help/linkage this pos other)) ) ;;construct and pass the map containing the vectors instead
  
 ;----------------------------------------------------------------------------------------------------------
 

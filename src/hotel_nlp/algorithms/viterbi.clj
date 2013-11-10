@@ -1,6 +1,6 @@
 (ns hotel_nlp.algorithms.viterbi
   (:require [clojure.pprint :refer [pprint]]
-            ;[clojure.contrib.probabilities.finite-distributions :refer [normalize]]
+            [clojure.string :refer [split]]
             [hotel_nlp.algorithms.ngrams :refer [ngrams*]]
             [hotel_nlp.helper   :refer [read-resource let-timed third fourth map-difference]]))
  
@@ -14,27 +14,18 @@
         "Emission probs: " (:emission-probs this) "\n"
         "Transitions probs: " (:state-transitions this)))) 
         
-(defrecord TokenTagPair [token tag]) 
+;(defrecord TokenTagPair [token tag]) 
 ;(def ^:dynamic *n* 2)                                           
 
  
 (defn make-hmm 
 ([states obs init-probs emission-probs state-transitions]
-  (HMM.
-    (if (vector? states) states (vec states))
-    (if (vector? obs)     obs (vec obs)) init-probs emission-probs state-transitions))
+  (HMM. states obs
+    ;(if (vector? states) states (vec states))
+    #_(if (vector? obs)     obs (vec obs)) init-probs emission-probs state-transitions))
 ([states init-probs emission-probs state-transitions] ;;no observations yet 
   (make-hmm states nil init-probs emission-probs state-transitions )))
-    
-(defn extract-pairs [^String corpus & {:keys [pair-sep tt-pair] 
-                                        :or {pair-sep #"\n" tt-pair #"/"}}]
-(->> (clojure.string/split corpus  pair-sep)  
-  (mapv #(let [[token tag] (clojure.string/split % tt-pair)] (TokenTagPair. token tag)))))   
-
-(defn- build-init-map
-([lks] (build-init-map lks lks))
-([l1-ks l2-ks]
-   (zipmap l1-ks (repeat (zipmap l2-ks (repeat 0))))))   
+         
 
 (declare smoothing-weights)
 
@@ -42,12 +33,15 @@
  (if (zero? n) 0
   (zipmap ks (repeat (build-init-map ks (dec n))))))
 
-(defn tables [^String corpus & {:keys [pair-sep tt-pair n] 
-                                 :or {pair-sep #"\s" tt-pair #"/" n 2}}]     
-(let-timed [token-tag-pairs (doall (keep #(when (:tag %) %) (extract-pairs corpus :pair-sep pair-sep :tt-pair tt-pair))) 
-      tokens (mapv :token token-tag-pairs)
+(defn tables [^String corpus-file & {:keys [tt-sep n] 
+                                     :or {tt-sep #"\|" n 2}}]     
+(let [token-tag-pairs  (with-open [^java.io.Reader r (clojure.java.io/reader corpus-file)]
+                              (doall
+                                (for [tt-pair (line-seq r) :let [[token tag] (split tt-pair tt-sep)]]
+    				 {:token token :tag tag})))
+      tokens (map :token token-tag-pairs)
       ;smoothing-weights (future (when (= n 3) (smoothing-weights tokens)))
-      tags    (mapv :tag  token-tag-pairs) ;;add start-of-sentence tag
+      tags   (map :tag  token-tag-pairs) ;;add start-of-sentence tag
       ngrams (ngrams* tags n)  ;;trigrams  (ngrams* tags 3)
       ngram-frequencies (frequencies ngrams) 
       tag-groups  (group-by :tag token-tag-pairs) ;; 
@@ -70,14 +64,17 @@
      start-probs (reduce-kv #(assoc % %2 (/ %3 all)) {} starts)
      trans-probs (reduce (fn [s [tag1 tag2 c]] (assoc-in s [tag1 tag2] (/ c (get starts tag2)))) {}
                   (for [[k1 v1] tra-table [k2 v2] v1] [k1 k2 v2]) ) ]
- [(keys trans-probs) start-probs em-probs trans-probs]))  
+ [(remove nil? (keys trans-probs)) start-probs em-probs trans-probs]))  
  
- (defn- scale-by ;;from contrib
+ (defn- scale-by ;;adopted from contrib
   "Multiply each entry in dist by the scale factor s and remove zero entries."
   [dist s]
-  (into {}
-	(for [[val p] dist :when (> p 0)]
-	  [val (* p s)])))
+  (reduce-kv 
+    (fn [m k p] 
+      (when (pos? p) (assoc m k (* p s)))) 
+   {} dist))
+	  
+	  
 	  
 (defn normalize ;from contrib
   "Convert a weight map (e.g. a map of counter values) to a distribution
@@ -143,7 +140,7 @@
 (defn init-alphas [hmm obs]
   (mapv (fn [x] ;(println x)
          (* (get (:init-probs hmm) x) 
-            (get-in (:emission-probs hmm) [x obs] 1.0E-7)))
+            (get-in (:emission-probs hmm) [x obs] 1.0E-6)))
    (:states hmm)) )
 
 
@@ -151,19 +148,19 @@
   (mapv (fn [state1]
          (* (reduce (fn [sum state2] ;(println state2)
              (+ sum (* (get alphas (.indexOf ^clojure.lang.APersistentVector (:states hmm) state2)) 
-                       (get-in (:state-transitions hmm) [state2 state1] 1.0E-7)))) ;;NEED SMOOTHING HERE
+                       (get-in (:state-transitions hmm) [state2 state1] 1.0E-6)))) ;;NEED SMOOTHING HERE
                     0
             (:states hmm))   ;(:states hmm)
-          (get-in (:emission-probs hmm) [state1 obs] 1.0E-7)))
+          (get-in (:emission-probs hmm) [state1 obs] 1.0E-6)))
      (:states hmm)) )
  
 (defn delta-max [hmm deltas obs]
  (mapv (fn [state1]
         (* (apply max (mapv (fn [state2]
                               (* (get deltas (.indexOf ^clojure.lang.APersistentVector (:states hmm) state2))
-                                 (get-in (:state-transitions hmm) [state2 state1] 1.0E-7 #_(weighted-sum (list state2 state1) *smoothing-weights*)))) ;;AND HERE
+                                 (get-in (:state-transitions hmm) [state2 state1] 1.0E-6 #_(weighted-sum (list state2 state1) *smoothing-weights*)))) ;;AND HERE
                             (:states hmm)))
-            (get-in (:emission-probs hmm) [state1 obs] 1.0E-7))) ;;AND HERE
+            (get-in (:emission-probs hmm) [state1 obs] 1.0E-6))) ;;AND HERE
      (:states hmm)))
 
  
@@ -178,7 +175,7 @@
   (mapv (fn [state1]
          (first (argmax (mapv (fn [state2]
                                   (* (get deltas (.indexOf ^clojure.lang.APersistentVector (:states hmm) state2))
-                                     (get-in (:state-transitions hmm) [state2 state1] 1.0E-7))) ;;AND HERE
+                                     (get-in (:state-transitions hmm) [state2 state1] 1.0E-6))) ;;AND HERE
                                 (:states hmm)))))
         (:states hmm)))
        
@@ -187,13 +184,17 @@
  
 (defn viterbi 
 ([hmm]
-(let [observs (:observations hmm)]
+(let [observs (:observations hmm)
+      states (:states hmm)
+      states (cond-> states 
+               ((complement vector?) states) vec)
+      hmm (assoc hmm :states states)] ;;states MUST be a vector
   (loop [obs (next observs)
          alphas (init-alphas hmm (first observs)) 
          deltas  alphas
          trellis []]
-    (if (empty? obs)
-      [(paths->states (backtrack trellis deltas) (:states hmm))  (apply +' alphas)]
+    (if (empty? obs) 
+      [(paths->states (backtrack trellis deltas) states)  (reduce +' alphas)]
       (recur (next obs)
         (forward hmm alphas   (first obs))
         (delta-max hmm deltas (first obs))
@@ -327,5 +328,5 @@
 
 
 ) 
-         
+;"The" "Fulton" "County" "Grand" "Jury" "said" "Friday" "an" "investigation" "of" "Atlanta's" "recent"  "primary" "election" "produced" "``" "no" "evidence" "''" "that" "any" "irregularities" "took" "place" ". "
 

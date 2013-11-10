@@ -68,23 +68,28 @@
                  (reduce (fn [c _] (conj c (gensym "autoValV"))) vals (range  absdiff)))]
     (zipmap keys vals)))      
       
-
+(with-test
 (defn confusion-matrix
 "Calculates the confusion matrix, given all the elements (ground-truth) and all the predictions (should be of equal size).
  The elements are expected to be in pairs of the type [element binary-class] -> [x :YES]  or [y :NO]. 
  Absence of prediction should be represented with [e :NO] or whatever other keyword you prefer via the :b-classes parameter 
- (the positive class should come first though!). Moreover, the g-truth and prediction elements must be in the sctrict order 
- they appeared or predicted, respectively."  
+ (the positive class is identified by looking up the :positive key in case of a map or 
+ by selecting the first item in any seq-like structure), or by looking at the meta-data map and its :positive key. 
+ Moreover, the g-truth and prediction elements must be in the sctrict order they appeared or predicted, respectively."  
 [g-truth predictions & {:keys [b-classes counts?] 
-                      :or {b-classes [:YES :NO] ;;positive class comes first!
-                           counts? false}}]  ;;want the seqs or the counts?
+                        :or {b-classes [:YES :NO] ;;positive class comes first!
+                             counts? false}}]  ;;want the seqs or the counts?
 (assert (= (count g-truth) 
            (count predictions)) "'g-truth' & 'predictions' should have the same size!")                       
- (let [M (reduce-kv #(if (= %2 %3) 
-                       (if (= (second %3) (first b-classes))             
+ (let [positive-class (cond-> b-classes
+                        (map? b-classes) :positive 
+                        (sequential? b-classes) first
+                        (set? b-classes) (-> meta :positive)) 
+       M (reduce-kv #(if (= %2 %3) 
+                       (if (= (second %3) positive-class)              
                           (update-in % [:TRUE :positive] conj %3)
                           (update-in % [:TRUE :negative] conj %3)) 
-                       (if (= (second %3) (first b-classes))             
+                       (if (= (second %3) positive-class)             
                           (update-in % [:FALSE :positive] conj %3)
                           (update-in % [:FALSE :negative] conj %3))) 
              {:TRUE {:positive [] 
@@ -99,6 +104,13 @@
        (get-in M [:FALSE :positive])) 
   :FN ((if counts? count identity) 
        (get-in M [:FALSE :negative]))}))
+(let [[gold predictions]  [[[:A :YES] [:B :NO]  [:C :NO] [:D :YES]] 
+                           [[:A :YES] [:B :YES] [:C :NO] [:D :YES]]]
+       answer {:TP [[:D :YES] [:A :YES]], :TN [[:C :NO]], :FP [[:B :YES]], :FN []}]
+  (is (= answer (confusion-matrix  gold predictions)))
+  (is (= answer (confusion-matrix gold predictions :b-classes (with-meta #{:YES :NO} {:positive :YES}))))
+  (is (= answer (confusion-matrix  gold predictions :b-classes {:positive :YES :negative :NO})))) )
+       
       
 (with-test      
 (defn IR-metrics 

@@ -12,6 +12,9 @@
         [clojure.core.reducers :as r]
         [clojure.test :refer [with-test is run-tests]]
         [hotel_nlp.protocols   :refer :all]
+        ;[plumbing.fnk.impl :refer [fnk-form]]
+        [plumbing.core :refer [fnk]]
+        [plumbing.graph :refer [eager-compile]]
      )
    (:import [java.io File FileFilter StringReader]
             [java.util.regex Pattern PatternSyntaxException]
@@ -25,8 +28,38 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* true)
 (defonce cpu-no (.. Runtime getRuntime availableProcessors))
+(defonce brown-pos-tagset
+  {:simplified #{"ADJ" "ADV" "CNJ" "EX" "DET" "FW" "MOD" "N" "NP" "NUM" "PRO" "P" "TO" "UH" "V" "VD" "VG" "VN" "WH"} ;;19 tags
+   :original   #{"." "(" ")" "--" "*" "," ":" "ABL" "ABN" "ABX" "AP" "AT" "BE" "BED" "BEDZ" "BEG" "BEN" "BER" "BEM" "BEZ" "CC" "CD" "CS" "DO" "DOD" "DOZ" "DT" "DTI" "DTS" "DTX" 
+                 "EX" "FW" "HV" "HVD" "HVG" "HVN" "IN" "JJ" "JJR" "JJS" "JJT" "MD" "NC" "NN" "NN$" "NNS" "NNS$" "NP" "NP$" "NPS" "NPS$" "NR" "OD" "PN" "PN$" "PP$" "PP$$" "PPL" "-NC" 
+                 "PPLS" "PPO" "PPS" "PPSS" "PRP" "PRP$" "QL" "QLP" "RB" "RBR" "RBT" "RN" "RP" "TO" "UH" "VB" "VBD" "VBG" "VBN" "VBP" "VBZ" "WDT" "WP$" "WPO" "WPS" "WQL" "WRB" "-TL" "-HL"} ;;88 tags
+   :full       #{"``" "VBN-NC" "IN-TL" "FW-NR" "CC" "PPSS" "NNS$-HL" "PPSS+MD-NC" "''" "BEM*" "HVN" "JJ" "DO+PPSS" "NPS-HL" "--" "NP-NC" "NN" "NP+MD" "PP$$" "NR$" "RBR-NC" "WDT+BER+PP" 
+                 "FW-TO+VB" "PPSS+BER-TL" "CD" "BED" "RB-HL" "JJ$-TL" "NN$-TL" "BED-NC" "CD-NC" "PP$-TL" "NN+HVZ" "NR-TL" "DT-HL" "CS-HL" "FW-IN" "BE-TL" "RBR" "NN-NC" "FW-AT-HL" "PPO-HL" 
+                 "NN+MD" "JJ-NC" "MD+HV" "NP" "PPSS-NC" "CC-NC" "DOZ-HL" "NP$" "PPSS+MD" "BER-HL" "VBN" "AP-HL" "BE" "PPS+BEZ-NC" "VBN-TL" "NP$-TL" "VB+JJ-NC" "DTS" "NP+HVZ" "HV-HL" "NP-TL"
+                 ".-HL" "VBZ-HL" "CD$" "FW-IN-TL" "RBT" "PN+MD" "VB+IN" "BEG" "NN+HVZ-TL" "PPSS+BER" "FW-IN+AT-T" "VBN+TO" "NR" "PP$" "NN$" "ABN-HL" "CD-TL" "RP-NC" "PN-NC" "PPL-HL" "NR$-TL"
+                 "WPS+HVD" "IN" "NN-TL" "PPSS+BER-N" "JJ-TL" ",-HL" "PPSS-TL" "CC-TL" "FW-NR-TL" "VB-HL" "DT+BEZ-NC" "WPS+BEZ" "FW-VBN" "FW-NN-NC" "FW-JJ-NC" "DO-HL" "PN$" "RB+BEZ-NC" 
+                 "FW-VBG-TL" "'" "RP-TL" "FW-AT+NP-TL" "PN-TL" "WRB" "*-HL" "VBG-NC" "TO-NC" "FW-NP-TL" "QL-NC" "FW-DTS" "WDT" "BER*-NC" "PPLS" "WPS+MD" "(" "WDT+HVZ" "FW-VB" ")-HL" "DTX" 
+                 "FW-PP$" "FW-CD-TL" "FW-NN$" "WPS-NC" "FW-IN+AT-TL" "PN+HVD" ")" "WRB+IN" "(-HL" "IN+PPO" "JJR+CS" "FW-VBD-TL" "FW-NN-TL" "FW-JJ-TL" "DOD-NC" "FW-CC-TL" "BED*" "FW-AT+NN-TL" 
+                 "BEDZ-NC" "*" "VBD-NC" "BEM" "DOZ*-TL" "WDT-HL" "VBG-TL" "TO-TL" "QL-TL" "FW-HV" "PN+BEZ" "WRB-HL" "FW-IN+NN" "WDT+BER" "FW-WDT" "WP$" "ABL" "WPS-TL" "DO" "BEN" ":-TL" 
+                 "PPSS+HVD" "MD-NC" "RB+CS" "WRB+BER" "WRB+DOZ" "BEZ-NC" "VBG+TO" "IN+IN" "FW-NNS-NC" "," "FW-RB" "CC-TL-HL" "PPSS+BEZ" "HVZ" "JJ-TL-HL" "WPO-NC" "NN-TL-HL" "NN+BEZ" "PPL" 
+                 "VB" "PPSS+HV-TL" "IN-HL" "FW-CS" "DTI-TL" "FW-DT" "CD-TL-HL" "ABN" "OD-NC" "NN$-HL" "VBD-TL" "PP$-HL" "NR-HL" "." "FW-NNS-TL" "NP-TL-HL" "HV" "DTS-HL" "NP+BEZ" "FW-*" 
+                 "VBN-TL-HL" "MD-TL" "BE-HL" "JJT-NC" "VBZ" "BEZ-TL" "NP$-HL" "AP" "BER" "NP-HL" "DTS+BEZ" "EX-NC" "FW-UH" "DOZ" "EX+MD" "WDT+BEZ-NC" "AT-NC" "PPO" "FW-AT" "MD+TO" "WPO-TL"
+                 "NNS-NC" "NRS" "UH-NC" "PPS-NC" "VBN-HL" "NNS+MD" "PPS+MD" "WRB+DO" "CS" "DT" "NN+IN" "OD-TL" "NNS-TL-NC" "CD-HL" "RB" "JJR-NC" "VB+PPO" "NR-TL-HL" "FW-NPS-TL" "FW-PPL" 
+                 "NN-HL" "---HL" "JJ-HL" "FW-OD-NC" "NNS$-NC" "PPSS-HL" "CC-HL" "IN-TL-HL" "DOD*" "NIL" "NPS-NC" "NPS" "BEDZ*" "JJT-TL" "NNS$" "PPS+BEZ-HL" "PPS-TL" "DT-NC" "CS-NC" "FW-VBZ" 
+                 "DT+MD" "WRB+BEZ-TL" "DO*-HL" "WQL" "WDT+BEZ-TL" "AT-TL" "RB-NC" "JJR" "NPS$-TL" "JJS-TL" "VB+AT" "RP+IN" "NNS-TL" "UH-TL" "AP-NC" "AT" "WDT+BEZ" "EX" "WQL-TL" "MD*" "FW-BER" 
+                 "PPO-NC" "WRB+BEZ" "BEZ*" "PPS" "UH" "NNS" "FW-PPL+VBZ" "RP-HL" "JJR-TL" "JJS" "FW-UH-NC" "PN-HL" "NPS$" "FW-PPO" "BER-NC" "EX+HVZ" "VBZ-NC" "FW-OD-TL" "DT$" "HVD*" "NNS$-TL"
+                 "PPS+HVZ" "NP+BEZ-NC" "NPS-TL" "HV-NC" "JJT" "DOD*-TL" ".-NC" "MD+PPSS" "RB$" "WRB+DOD*" "DT-TL" "CS-TL" "WDT+DOD" "QLP" "RB+BEZ-HL" "OD" "AP$" "WRB+DOD" "ABN-NC" "RB-TL" 
+                 "FW-NPS" "FW-JJR" "VB-NC" "BER-TL" "WPO" "PPL-NC" "AP-TL" "VBG-HL" "HVD" "TO-HL" "NRS-TL" "HVZ-NC" "QL-HL" "FW-AT-TL" "PPO-TL" ",-NC" "DOZ-TL" "FW-UH-TL" "WDT+DO+PPS" ".-TL" 
+                 "ABX" "FW-QL" "BEZ" "VB+VB-NC" "VBZ-TL" "JJ+JJ-NC" "NN+NN-NC" "MD" "DO-NC" "FW-*-TL" "WPS-HL" ":-HL" "FW-PPS" "HV-TL" "PPSS+VB" "AP+AP-NC" "FW-NNS" "HV+TO" "FW-JJT" "DTI-HL" 
+                 "FW-DT+BEZ" "BEM-NC" "*-NC" "HVG-HL" "VBD" "BEDZ-HL" "ABN-TL" "BEDZ" "FW-NN-TL-NC" "HVG" "DOD" "VB-TL" "PPL-TL" "NN+BEZ-TL" "DTI" "PPSS+HV" "RBR+CS" "HVZ-TL" "FW-RB-TL" 
+                 "VBD-HL" ",-TL" "FW-IN+NP-TL" ":" "FW-VB-NC" "FW-PN" "WPS" "NN+HVD-TL" "MD-HL" "VB+TO" "FW-WPO" "BEZ-HL" "FW-PP$-NC" "DO-TL" "BEN-TL" "WRB-NC" "DOZ*" "WRB+MD" "WPS+HVZ" 
+                 "HVD-HL" "BER*" "FW-BEZ" "WDT-NC" "QL" "TO" "*-TL" "VBG" "FW-IN+NN-TL" "FW-NN" "FW-VBD" "WPS+BEZ-NC" "HV*" "DT+BEZ" "RN" "RB+BEZ" "FW-CC" "FW-JJ" "TO+VB" "FW-PPSS" "OD-HL" 
+                 "FW-PPSS+HV" "FW-VB-TL" "VB+RP" "FW-PPO+IN" "JJT-HL" "JJ-TL-NC" "FW-IN+AT" "FW-CD" "NN-TL-NC" "FW-NN$-TL" "FW-PP$-TL" "IN-NC" "NNS$-TL-HL" "EX+HVD" "FW-NP" "EX-HL" "HVZ*" 
+                 "WDT+BEZ-HL" "PPSS+BEZ*" "AT-HL" "WRB-TL" "NPS$-HL" "FW-WPS" "JJS-HL" "PN" "PP$-NC" "PPS+HVD" "RP" "NR-NC" "NNS-HL" "UH-HL" "PPS-HL" "NR+MD" "PPSS+BER-NC" "MD*-HL" "PN+HVZ" 
+                 "FW-VBG" "NNS-TL-HL" "PPSS+BEM" "DO*" "WPS+BEZ-TL" "PPS+BEZ" "JJR-HL" "FW-RB+CC" "NP+HVZ-NC" "AT-TL-HL" "FW-BE" "VBN-TL-NC" "EX+BEZ"} ;;472 tags
+   :mapping  {} }) 
 
-(declare addC removeC replaceC insert-at remove-at link*)
+(declare addC removeC replaceC insert-at remove-at link* linkage)
 
 (defrecord Workflow [components] ;;a seq of components
  IWorkflow
@@ -41,7 +74,7 @@
  (deploy [this text] (deploy this text false))
 IComponent   ;; the workflow can itself be a component
  (link [this pos other]
-   (Workflow. (link* this pos other)))
+   (linkage this pos other))
  ;(run [this] (deploy this))
  (run [this text] (deploy this text)) ;;(reduce #(run  %2 %) text components))
  ;(run [this text & more] (deploy this text (first more)))
@@ -54,6 +87,40 @@ clojure.lang.IFn  ;;can act as an fn
   ;(toString [this]
     ;(str "#hotel_nlp.helper.Workflow" {:components (:components this)}))
     )
+    
+(defmacro component->fnk "Converts a component into a fnk."
+ [c & arg-syms]
+  `(fnk  [~@arg-syms] (run ~c ~@arg-syms)))       
+    
+(defrecord GraphWorkflow [components] ;;a map of components -> fnks (see prismatic.plumbing)
+ IWorkflow
+ (getComponents [this] (keys (dissoc components :input))) ;;just return all keys except :input 
+ (appendComponent [this [c fnk :as entry]]  (assoc components entry))
+ (addComponent [this pos c]  (throw (IllegalStateException. "GWorkflow does not allow adding a component at a specified position because it is not a serial workflow.")))
+ (removeComponent [this c] (dissoc components c))
+ (replaceComponent [this pos replacement] 
+    (throw (IllegalStateException. "GWorkflow does not allow replacing a component at a specified position because it is not a serial workflow. 
+                                    Consider using appendComponent with a [:key-to-replace new-component]")))
+ (deploy [_ text intermediates?]
+   (let [G (eager-compile components)]
+     (if intermediates?  
+             (G {:s text})
+      (first (G {:s text})))))
+ (deploy [this text] 
+  (deploy this text false))
+IComponent   ;; the workflow can itself be a component
+ (link [this pos other]
+   (throw (IllegalStateException. "GWorkflow does not support linking. ")))
+ (run [this text] (deploy this text)) 
+clojure.lang.IFn  ;;can act as an fn
+  (invoke [this arg]
+    (deploy this arg))
+  (applyTo [this args]
+    (apply deploy this args))
+;Object
+  ;(toString [this]
+    ;(str "#hotel_nlp.helper.Workflow" {:components (:components this)}))
+    )    
 
 #_(defmethod print-method Workflow [wf ^java.io.Writer w]
   (.write w "#hotel_nlp.helper.Workflow")
@@ -87,8 +154,8 @@ clojure.lang.IFn  ;;can act as an fn
   [coll x]
  `(some #{~x} ~coll))
 
-(definline linkage [obj pos other]
-`(hotel_nlp.helper.Workflow. (hotel_nlp.helper/link* ~obj ~pos ~other)))
+(defn linkage [obj pos other]
+ (Workflow. (link* ~obj ~pos ~other)))
 
  ;(run-tests)
 
@@ -309,9 +376,9 @@ only when there's a non-map at a particular level.
 (is (= 3 (dim-no [[[1 2 3] [4 5 6]] [[7 8 9] [10 11 12]]])))
 (is (= 1 (dim-no (doto (java.util.ArrayList.) (.add 10) (.add 30)))))
 (is (= 2 (dim-no (doto (java.util.ArrayList. 10) (.add (doto (java.util.ArrayList.) (.add 0) ))))))
+(is (= 1 (dim-no ["jim" "george"])))
+(is (= 2 (dim-no [["jim" "george"]])))
 )
-
-
 
 (definline two-d? [coll]
 `(= (dim-no ~coll) 2))
@@ -404,7 +471,7 @@ ordering."
 ([string-seq] (join string-seq "\n"))
 ([string-seq ^String separator] (stu/join separator string-seq)))
 
-(defn link* [c1 pos c2]
+(defn- link* [c1 pos c2]
 (let [others (if (satisfies? IWorkflow c2) (getComponents c2) c2)]
  (case pos
    :before  (if (map? others) (vector c1 others) (apply vector c1 others))
@@ -449,16 +516,19 @@ ordering."
   (rhmap f coll 1)) )
 
 (defn mapr
-"A pretty basic map-reduce style mapping function. Will partition the data according to p-size and assign a future to each partition (per pmap)."
+"A pretty basic map-reduce style mapping function. Also supports shuffling which defaults to false. p-size defaults to (/ (count coll) (+ 2 cpu-no)).
+ Will partition the data according to p-size and assign a future to each partition (per pmap). Assumes a large coll and a cheap f."
 ([f coll p-size shuffle?]
  (->> (cond-> coll shuffle? shuffle)
     (partition-all p-size)
     (pmap #(mapv f %) )
-    (apply concat)) ) ;;concat the inner vectors that represent the partitions
+    (apply concat)   ;;concat the inner vectors that represent the partitions
+    dorun) ) 
 ([f coll p-size]
   (mapr f coll p-size false))
 ([f coll]
-  (mapr f coll (+ 2 cpu-no))))
+  (mapr f coll (/ (count coll) 
+                  (+ 2 cpu-no)))) )
 
 (defn create-folder!
 "Creates a folder at the specified path."
@@ -535,6 +605,13 @@ ordering."
            (select-keys m1
                         (remove (fn [k] (= (m1 k) (m2 k)))
                                 ks1*ks2)))))
+                                
+(defn empty+ "Like clojure.core/empty but works with non-persistent collections too (via reflection)."
+ [coll & ctor-args]
+  (condp instance? coll 
+    clojure.lang.IPersistentCollection   (.empty ^clojure.lang.IPersistentCollection coll)
+    java.util.Collection  (clojure.lang.Reflector/invokeConstructor (class coll) (to-array ctor-args)) ;;slower but does the job nicely
+   nil ))                                  
 
 (defmacro let-timed "Just like 'let' but each binding expression will be timed."
   [bindings & body]
@@ -650,17 +727,15 @@ ordering."
 "Serialize the object b on to the disk using standard Java serialization."
 [b ^String fname]
 (with-open [oout (java.io.ObjectOutputStream.
-                  (java.io.FileOutputStream. fname))]
+                 (java.io.FileOutputStream. fname))]
   (.writeObject oout b)))
 
 (defn deserialize!
 "Deserializes the object in file f from the disk using standard Java serialization."
  [^String fname]
-(with-local-vars [upb nil]  ;;waiting for the value shortly
-  (with-open [oin (java.io.ObjectInputStream.
-                   (java.io.FileInputStream. fname))]
-     (var-set upb (.readObject oin)))
-       @upb))
+(with-open [oin (java.io.ObjectInputStream.
+                (java.io.FileInputStream. fname))]
+  (.readObject oin)))
  
 (deftype ReducibleCharStream [filename]
 clojure.core.protocols/CollReduce
@@ -679,6 +754,12 @@ clojure.core.protocols/CollReduce
  "Reducible slurp which doesn't hold on to the head. 
   Returns a ReducibleCharStream object which you can use with any reducer." 
  [filename]
-  (ReducibleCharStream. filename))       
+  (ReducibleCharStream. filename)) 
+  
+#_(defn spit++ "Like 'spit' but" 
+[filename data]
+ (with-open [^java.io.Writer wrt (io/writer filename)]
+  (doseq [x data]
+    (.write wrt (str x "\n")))))        
 
 

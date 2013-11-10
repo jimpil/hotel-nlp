@@ -4,13 +4,13 @@
               [hotel_nlp.concretions.artefacts :refer [reg-seg reg-tok stemmer brown-nltk-pos-probs abbreviation-extractor java-util-tokenizer+]]
               [hotel_nlp.algorithms.viterbi :as vit]
               [hotel_nlp.helper :as help]
-              [hotel_nlp.core :refer [defcomponent defworkflow fn->component]]
+              [hotel_nlp.core :refer [defcomponent defworkflow defgraph fn->component draw]]
               [clojure.pprint :refer [pprint print-table]]
               [clojure.java.io :as io]
               [opennlp.nlp :as clp]
-              [opennlp.tools.filters :as fi]
+              [opennlp.tools.filters :as fi]  
               [opennlp.treebank :as trb])
-   (:import ;[hotel_nlp.helper Workflow] 
+   (:import [hotel_nlp.helper GraphWorkflow] 
             [hotel_nlp.concretions.models HMM-POS-tagger])
 )
 (def ^java.util.Properties s-properties (System/getProperties)) ;just in case we need them
@@ -127,7 +127,18 @@
                    (fn->component #(zipmap (nth % 2)  (nth % 3))) 
 
                    (fn->component #(reverse (run opennlp-chunk (keys %) (vals %)))) ) ;;reverse here due to zipping
-;(deploy opennlp-chunking-pipe bbc-sample) 
+;(deploy opennlp-chunking-pipe bbc-sample)
+
+(defgraph opennlp-chunking-pipe++ "The same chunking pipe defined as a graph. The view for drawing is provided as an example too."  
+  :SD  (help/component->fnk opennlp-ssplit s)  ;(fnk [s]   (run opennlp-ssplit s)) 
+  :TOK (help/component->fnk opennlp-tok SD)    ;(fnk [SD]  (run opennlp-tok SD))
+  :POS (help/component->fnk opennlp-pos TOK)   ;(fnk [TOK] (run opennlp-pos TOK))
+  :CHU (help/component->fnk opennlp-chunk TOK POS)   ;(fnk [TOK POS] (run opennlp-chunk TOK POS)) 
+   {opennlp-ssplit [opennlp-tok]
+    opennlp-tok [opennlp-pos opennlp-chunk]
+    opennlp-pos [opennlp-chunk]
+    opennlp-chunk []} )
+ 
                 
   
 #_(def stanford-pipe "A common stanford-nlp workflow."  ;;it is already a workflow - no need to use 'defworkflow'
