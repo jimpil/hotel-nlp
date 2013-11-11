@@ -38,6 +38,7 @@
                  [incanter "1.5.1"] 
                  [rhizome "0.1.9"]
                  [prismatic/plumbing "0.1.1"]
+                 [seesaw "1.4.3" :exclusions[[org.clojure/clojure]]]
                  ]
   :jvm-opts ^:replace 
             ["-Xmx3g" "-server"  ;;ideally need 3GB for stanford-corenlp
