@@ -1,5 +1,6 @@
 (ns hotel_nlp.app.gui.core
-  (:require [seesaw.core :as ssw] 
+  (:require [clojure.string :as s]
+            [seesaw.core :as ssw] 
             [seesaw.chooser :as choo]
             [seesaw.swingx :as ssx])
    (:import [javax.swing UIManager])
@@ -28,7 +29,13 @@
     (knob! k v)))
  
 (defmacro reset-knobs! []
-`(reset! knobs brand-new))             
+`(reset! knobs brand-new)) 
+
+(defn str-buffer [^StringBuilder buffer]
+  (fn [& args]
+    (when-let [arg (first args)]
+      (.append buffer arg)
+      (recur (rest args)))))            
 
 
 (defn make-menubar 
@@ -47,7 +54,15 @@
                                     (ssw/repaint! canvas)))
                         :name "Open PDF" 
                         :tip  "Load text from a .pdf file." 
-                        :key  "menu N")                      
+                        :key  "menu P")
+                        
+       a-newurl (ssw/action :handler (fn [e] 
+                                    #_(when-let [f (choo/choose-file :filters [["PDF" ["pdf"]]])]  
+                                    (reset! core/board-history (ut/string->data f @curr-game) #_(ut/deserialize! f)) ;;use java serialisation for now
+                                    (ssw/repaint! canvas)))
+                        :name "Open URL" 
+                        :tip  "Load text from a remote file." 
+                        :key  "menu U")                                        
                                                   
       a-save (ssw/action :handler (fn [e] (choo/choose-file :type :save
                                                             :filters [["text" ["txt"]]] ;;use java serialisation for now
@@ -78,12 +93,12 @@
                                       #_(ssw/alert (str "nREPL server is up and running! Make a note of the following:\nIP address = " (ut/external-ip) "\nPort = 8989\nName = Clondie24-nREPL")) )    
                             :name "nREPL server" 
                             :tip  "Start nREPL server that accepts remote clients.")
-      a-bout    (ssw/action :handler (fn [e] (ssw/alert "Not implemented!")) 
+      a-bout    (ssw/action :handler (fn [e] (ssw/alert "hotel-NLP v0.2.3 (jimpil)")) 
                            :name "About" 
-                           :tip  "A few words." 
+                           :tip  "Version & author" 
                            :key  "menu A")]   
 (ssw/menubar :items 
-   [(ssw/menu :text "File"    :items [a-new a-newpdf a-save  a-quit])
+   [(ssw/menu :text "File"    :items [a-new a-newpdf a-newurl a-save  a-quit])
     (ssw/menu :text "Options" :items [a-pref])
     (ssw/menu :text "Tools"   :items [lo-repl re-repl])
     (ssw/menu :text "Help"    :items [a-details a-bout])]) ))
@@ -98,10 +113,17 @@
     ;:background "#222222"; no need for background anymore
     ))
     
+(def input-pane 
+(ssw/text :text "Paste your input text here ..." 
+          :multi-line? true))
+  
+(def result-pane 
+  (ssw/styled-text :wrap-lines? true))       
+    
 (defn GUI "Constructs and returns the entire frame." []
  (ssw/frame
     :title "hotel-NLP"
-    :size  [1000 :by 600]
+    :size  [1000 :by 650]
     :resizable? true
     :on-close :dispose
     :menubar  (make-menubar)                   
@@ -113,19 +135,21 @@
                        (ssw/flow-panel :items [(ssw/radio :id :a :text "openNLP"     :group bg)
                                                (ssw/radio :id :b :text "stanfordNLP" :group bg)
                                                (ssw/radio :id :b :text "GATE" :group bg)
-                                               (ssw/radio :id :b :text "regex" :group bg)
+                                               (ssw/radio :id :b :text "regex" :selected? true :group bg)
                                                (ssw/radio :id :b :text "custom" :group bg)]
                                        :hgap 20 ))  
-               :east  (let [scr  (ssw/scrollable (ssw/styled-text :wrap-lines? true))]
-                         (.setBackground (.getViewport scr) java.awt.Color/white) (.setPreferredSize scr (java.awt.Dimension. 400 500)) scr) 
+               :east  (let [scr  (ssw/scrollable result-pane) ]
+                   (.setBackground (.getViewport scr) java.awt.Color/white)
+                   (.setPreferredSize scr (java.awt.Dimension. 430 530)) scr) 
                :center (ssw/vertical-panel :items 
-                       [(ssw/button :text "Segment"  :listen [:action (fn [e] #_(when-not (:block? @knobs) 
+                       [(ssw/button :text "Segment"  :listen [:action (fn [e] (ssw/text! result-pane (s/join "\n" (seq (.split (ssw/text input-pane) "\\."))))
+                                                                        #_(when-not (:block? @knobs)      
                                                                            (do (refresh :highlighting? false 
                                                                                         :hint nil 
                                                                                         :whose-turn (opposite-color-of (:whose-turn @knobs)))        
                                                                                (undo!)
                                                                                (ssw/config! status-label :text (str (:whose-turn @knobs) " moves next..."))
-                                                                               (ssw/repaint! canvas))))])   [:fill-v 5]
+                                                                               (ssw/repaint! canvas))))])   [:fill-v 15]
                         (ssw/button :text "Tokenise" 
                                     :listen [:action 
                                              (fn [e] #_(when-not (:block? @knobs)
@@ -158,9 +182,10 @@
                                      :listen [:action (fn [e] 
                                                        #_(when-not (:block? @knobs)
                                                         (knob! :pruning? (not (:pruning? @knobs)))))])   [:fill-v 15]  ]) 
-               :west  (let [scr  (ssw/scrollable (ssw/text :text "Paste your input text here ..." 
-                                                                  :multi-line? true)) ]
-                         (.setBackground (.getViewport scr) java.awt.Color/white) (.setPreferredSize scr (java.awt.Dimension. 400 500)) scr) 
+               :west 
+                 (let [scr  (ssw/scrollable input-pane) ]
+                   (.setBackground (.getViewport scr) java.awt.Color/white)
+                   (.setPreferredSize scr (java.awt.Dimension. 430 530)) scr)  
                :south   (ssx/busy-label :busy? (:block? @state))   )))    
                          
                          
