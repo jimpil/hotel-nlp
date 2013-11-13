@@ -447,6 +447,20 @@ ordering."
 
 ;(ut/extract-xml-blocks "invitro_test.xml" :article [:title :sentence] [:abstract :sentence] [:abstract :annotation :sentence])
 
+(defn str-builder 
+"A simple function that wraps a fresh StringBuilder upon each invocation.
+ Returns a StringBuilder with all args appended." 
+[& args]
+ (let [buffer (StringBuilder.)]
+ (doseq [x args]
+   (.append buffer x)) buffer))
+
+(defn pdf->string ^String [^File src]
+  (let [pd (PDDocument/load src)
+        stripper (PDFTextStripper.)]
+    (.getText stripper pd)))
+
+
 (defn pdf->txt [^String src & {:keys [s-page e-page dest]
                                :or {s-page 1 dest (str (first (stu/split src #"\.")) ".txt")}}]
  {:pre [(< 0 s-page) (.endsWith src ".pdf")]}
