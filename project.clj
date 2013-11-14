@@ -24,7 +24,7 @@
                  [net.sf.jwordnet/jwnl "1.4_rc3"] ;latest wordnet
                  [uk.ac.gate/gate-core "7.1" :exclusions [[org.springframework/spring-beans]]]
                  [org.apache.lucene/lucene-snowball "3.0.3"]
-                 [org.apache.pdfbox/pdfbox "1.7.1"]
+                 [org.apache.pdfbox/pdfbox "1.8.2"]
                  [org.apache.uima/uimaj-core "2.4.0"]
                  ;[org.apache.uima/uimaj-examples "2.4.0"]
                  [org.apache.uima/Tagger "2.3.1"]

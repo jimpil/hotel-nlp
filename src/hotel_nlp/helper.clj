@@ -458,7 +458,7 @@ ordering."
 (defn pdf->string ^String [^File src]
   (let [pd (PDDocument/load src)
         stripper (PDFTextStripper.)]
-    (.getText stripper pd)))
+    (.getText stripper pd)))   
 
 
 (defn pdf->txt [^String src & {:keys [s-page e-page dest]

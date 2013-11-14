@@ -1,31 +1,30 @@
 (ns hotel_nlp.app.gui.core
   (:require [clojure.string :as s] 
             [clojure.inspector :refer [inspect]]
+            [clojure.pprint :refer [pprint]]
             [seesaw.core :as ssw] 
             [seesaw.chooser :as choo]
             [seesaw.swingx :as ssx] 
             [seesaw.icon :refer [icon]]
-            [hotel_nlp.helper :as ut])
-   (:import [javax.swing UIManager])
+            [hotel_nlp.helper :as ut]
+            [hotel_nlp.algorithms.ngrams :refer [ngrams*]])
+   (:import [javax.swing UIManager] 
+            [java.awt.print.PrinterJob])
 )
 
-;;try to look like a native app            
-(UIManager/setLookAndFeel (UIManager/getSystemLookAndFeelClassName)) 
+;;try to look like a native app
+(ssw/native!)            
+;(UIManager/setLookAndFeel (UIManager/getSystemLookAndFeelClassName)) 
            
 (def brand-new {:curr-text " "
                 :result " "
-                :busy? false })
+                :block? false})
 
 (def state "Various knobs for the gui. Better keep them together."
  (atom brand-new))
       
 (definline knob! [k nv]
 `(swap! state assoc ~k ~nv)) 
-
-(defmacro with-block [& blocking-jobs]
-`(try (knob! :busy? true)  ~@blocking-jobs
-  (catch Exception e# (.getMessage e#)) 
-    (finally (knob! :busy? false))))
 
 (defn refresh [& {:as knobs}]
   (doseq [[k v] knobs]
@@ -43,38 +42,58 @@
 
 (def blabel
   (ssx/busy-label :text "Status" :busy? false))
-  
-(defmacro with-busy [& code]
- `(try (ssw/config! blabel :busy? true) ~@code
-   (finally (ssw/config! blabel :busy? false))))            
 
-(declare GUI)
 
-(defn make-menubar 
-"Constructs and returns the entire menu-bar." []
+(declare GUI)  
+
+(defmacro with-busy [block? & code]
+ `(try 
+    (ssw/config! blabel :busy? true)
+    (knob! :block? ~(boolean block?))
+     ~@code
+  (catch Exception e# (ssw/alert GUI (.getMessage e#)))   
+   (finally 
+     (ssw/config! blabel :busy? false) 
+     (knob! :block? false))))
+     
+(defmacro with-block-check [& code]
+  `(when-not (:block? @state)
+     ~@code))      
+   
+(defn pstring "Returns a pretty string via pprint." 
+ ^String [x]
+  (with-out-str (pprint x)))       ;;https://dl.dropboxusercontent.com/u/45723414/sun-dic.txt        
+
+(def menubar 
+"The entire menu-bar." 
 (let [a-new (ssw/action :handler (fn [_] 
+                                  (with-block-check 
                                     (when-let [f (choo/choose-file GUI :filters [["text" ["txt"]]])]  
-                                       (ssw/text! input-pane (slurp f))))
+                                      (future (with-busy true (ssw/text! input-pane (slurp f)))))))
                         :name "Open file" 
                         :icon (icon (clojure.java.io/resource "img/File.png"))
                         :tip  "Load text from a regular .txt file" 
                         :key  "menu N") 
                         
-      a-newpdf (ssw/action :handler (fn [_] 
+      a-newpdf (ssw/action :handler (fn [_]
+                                     (with-block-check 
                                      (when-let [f (choo/choose-file GUI :filters [["PDF" ["pdf"]]])]
-                                      (with-busy (ssw/text! input-pane (ut/pdf->string f)))))
+                                       (future (with-busy true (ssw/text! input-pane (ut/pdf->string f)))))))
                         :name "Open PDF" 
                         :icon (icon (clojure.java.io/resource "img/File_Pdf.png"))
                         :tip  "Load text from a .pdf file" 
-                        :key  "menu P")
+                        :key  "menu D")
                         
        a-newurl (ssw/action :handler (fn [_] 
+                                      (with-block-check
                                        (when-let [^String user-input (ssw/input GUI "Provide a valid remote location (URL):" :title "Load text from URL" :type :question)]
                                         (when (seq user-input)
                                           (->> user-input 
                                            clojure.java.io/as-url 
                                            slurp 
-                                           (ssw/text! input-pane)))))  
+                                           (ssw/text! input-pane)
+                                           (with-busy true)
+                                           future)))) ) 
                         :name "Open URL" 
                         :icon  (icon (clojure.java.io/resource "img/Globe.png"))
                         :tip  "Load text from a remote file" 
@@ -84,11 +103,20 @@
                                                             :type :save
                                                             ;:filters [["text" ["txt"]]]
                                                             :success-fn (fn [_ f] (spit f (ssw/text result-pane)))))
-      
-                        :name "Save as ..."
-                        :icon   (icon (clojure.java.io/resource "img/flash_disk.png"))
-                        :tip "Write the contents of the result pane to a .txt file" 
-                        :key "menu S")
+                         :name "Save as ..."
+                         :icon   (icon (clojure.java.io/resource "img/flash_disk.png"))
+                         :tip "Write the contents of the result pane to a .txt file" 
+                         :key "menu S")                                   
+      a-print (ssw/action :handler (fn [_] 
+                                    (when-let [uin (ssw/input GUI "Which pane to print? 1 (left) or 2 (right)?" :title "Print the contents of a text-pane" :type :question)]   
+                                     (case uin 
+                                       "1" (.print input-pane)
+                                       "2" (.print result-pane)
+                                       (ssw/alert GUI "You are expected to provide 1 or 2"))))
+                          :name "Print"
+                          :icon   (icon (clojure.java.io/resource "img/print.png"))
+                          :tip "Print the contents of the input pane." 
+                          :key "menu P")                    
       a-quit (ssw/action :handler (fn [e] (System/exit 0))
                          :name "Quit" 
                          :icon  (icon (clojure.java.io/resource "img/deletered.png"))
@@ -98,7 +126,7 @@
                          :name "Preferences" 
                          :tip  "Show options" 
                          :key  "menu O")
-      a-details (ssw/action :handler (fn [e] (clojure.inspector/inspect  (into {} (System/getProperties)))) 
+      a-details (ssw/action :handler (fn [_] (inspect (into {} (System/getProperties)))) 
                             :name "Details"
                             :icon (icon (clojure.java.io/resource "img/information2.png"))   
                             :tip  "Info about your PC and the JVM."
@@ -116,7 +144,7 @@
                            :tip  "Version & author" 
                            :key  "menu A")]   
 (ssw/menubar :items 
-   [(ssw/menu :text "File"    :items [a-new a-newpdf a-newurl a-save  a-quit])
+   [(ssw/menu :text "File"    :items [a-new a-newpdf a-newurl a-save a-print  a-quit])
     (ssw/menu :text "Options" :items [a-pref])
     (ssw/menu :text "Tools"   :items [lo-repl re-repl])
     (ssw/menu :text "Help"    :items [a-details a-bout])]) ))
@@ -145,10 +173,10 @@
  (ssw/frame
     :title "hotel-NLP"
     :icon "img/hotel-icon.png"
-    :size  [1000 :by 650]
+    :size  [1000 :by 660]
     :resizable? true
     :on-close :dispose
-    :menubar  (make-menubar)                   
+    :menubar  menubar                   
     :content  (ssw/border-panel
                :border 10
                :hgap 10
@@ -165,14 +193,21 @@
                    (.setPreferredSize scr (java.awt.Dimension. 430 530)) scr) 
                :center (ssw/vertical-panel :items 
                        [(ssw/button :text "SEGMENT"  :listen [:action (fn [e] 
-                                                                        (when-not (:busy? @state)      
+                                                                        (with-block-check      
                                                                            (ssw/text! result-pane (s/join "\n" (seq (.split (ssw/text input-pane) "\\."))))))])   [:fill-v 15]
                         (ssw/button :text "TOKENISE" 
                                     :listen [:action 
-                                             (fn [e] #_(when-not (:busy? @knobs)
+                                             (fn [e] #_(when-not (:block? @state)
                                                       (do (refresh :highlighting? false 
                                                                    :hint nil) 
                                                                (clear!) (ssw/repaint! canvas))))]) [:fill-v 15]
+                        (ssw/button :text "N-GRAMS" 
+                                    :listen [:action 
+                                             (fn [e] (with-block-check
+                                                      (when-let [uin (ssw/input GUI "Provide any positive n:" :title "Generate n-grams" :type :question)]
+                                                         (ssw/text! result-pane 
+                                                           (pstring
+                                                               (ngrams* (-> input-pane ssw/text read-string) (Integer/parseInt uin)))))))]) [:fill-v 15]                                       
                         (ssw/button :text "STEM" 
                                     :listen [:action 
                                              (fn [e] #_(when-not (:busy? @knobs)
@@ -212,16 +247,19 @@
                                      :listen [:action (fn [e] 
                                                        #_(when-not (:busy? @knobs)
                                                         (knob! :pruning? (not (:pruning? @knobs)))))])   [:fill-v 15] 
-                                                        
+                       (ssw/button   :text "ANNOTATE" 
+                                     :listen [:action (fn [e] 
+                                                       #_(when-not (:busy? @knobs)
+                                                        (knob! :pruning? (not (:pruning? @knobs)))))])   [:fill-v 15]                                  
                       (ssw/button   :text "<<MOVE<" 
                                     :listen [:action (fn [e] 
-                                                       (when-not (:busy? @state)
+                                                       (with-block-check
                                                         (move-text! result-pane input-pane true)))])   [:fill-v 15]  ]) 
                :west 
                  (let [scr  (ssw/scrollable input-pane) ]
                    (.setBackground (.getViewport scr) java.awt.Color/white)
                    (.setPreferredSize scr (java.awt.Dimension. 430 530)) scr)  
-               :south   (ssx/busy-label :text "Status" :busy? (:busy? @state))   )))    
+               :south   blabel)))    
                          
                          
 (defn set-laf! "Set look and feel of the ui, provided its name as a string."  
