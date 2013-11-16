@@ -6,16 +6,20 @@
             [seesaw.chooser :as choo]
             [seesaw.swingx :as ssx] 
             [seesaw.icon :refer [icon]]
-            [hotel_nlp.helper :as ut]
+            [hotel_nlp.helper :as ut] 
+            [hotel_nlp.app.gui.proc :as pro]
             [hotel_nlp.algorithms.ngrams :refer [ngrams*]])
-   (:import [javax.swing UIManager] 
-            [java.awt.print.PrinterJob])
+   (:import [javax.swing UIManager])
 )
 
 ;;try to look like a native app
 (ssw/native!)            
 ;(UIManager/setLookAndFeel (UIManager/getSystemLookAndFeelClassName)) 
-           
+(defonce paragraph
+"More than nine million people have been affected in the Philippines. Many are now struggling to survive without food, shelter or clean drinking water. A picture is slowly emerging of the full damage wrought by the storm.")
+
+(defonce IP (ut/external-ip))
+            
 (def brand-new {:curr-text " "
                 :result " "
                 :block? false})
@@ -57,8 +61,7 @@
      (knob! :block? false))))
      
 (defmacro with-block-check [& code]
-  `(when-not (:block? @state)
-     ~@code))      
+  `(when-not (:block? @state)  ~@code))        
    
 (defn pstring "Returns a pretty string via pprint." 
  ^String [x]
@@ -142,12 +145,17 @@
                            :name "About" 
                            :icon (icon (clojure.java.io/resource "img/sleep_hotel.png"))
                            :tip  "Version & author" 
-                           :key  "menu A")]   
+                           :key  "menu A")
+     a-ip      (ssw/action :handler (fn [_] (ssw/alert GUI (str "Your external IP is: " IP) )) 
+                           :name "Public IP" 
+                           :icon (icon (clojure.java.io/resource "img/ip.png"))
+                           :tip  "Your external IP address" 
+                           :key  "menu I")                       ]   
 (ssw/menubar :items 
    [(ssw/menu :text "File"    :items [a-new a-newpdf a-newurl a-save a-print  a-quit])
     (ssw/menu :text "Options" :items [a-pref])
     (ssw/menu :text "Tools"   :items [lo-repl re-repl])
-    (ssw/menu :text "Help"    :items [a-details a-bout])]) ))
+    (ssw/menu :text "Help"    :items [a-details a-ip a-bout])]) ))
 
 #_(def canvas "The paintable canvas - our board"
  (ssw/canvas
@@ -167,7 +175,17 @@
   (when clear?
     (ssw/text! tp1 "")))
 ([tp1 tp2]
-  (move-text! tp1 tp2 false)))            
+  (move-text! tp1 tp2 false)))
+  
+(def rb-group (ssw/button-group))
+
+ (defn identify-impl []
+  (case (-> rb-group ssw/selection ssw/text) 
+   "openNLP" :open
+   "stanfordNLP" :stanford
+   "GATE" :gate
+   "regex" :regex
+   "custom" :custom))                 
     
 (def GUI "the entire frame." 
  (ssw/frame
@@ -181,7 +199,7 @@
                :border 10
                :hgap 10
                :vgap 10
-               :north (let [bg (ssw/button-group)]
+               :north (let [bg rb-group]
                        (ssw/flow-panel :items [(ssw/radio :id :a :text "openNLP"     :group bg)
                                                (ssw/radio :id :b :text "stanfordNLP" :group bg)
                                                (ssw/radio :id :b :text "GATE" :group bg)
@@ -189,25 +207,35 @@
                                                (ssw/radio :id :b :text "custom" :group bg)]
                                        :hgap 20 ))  
                :east  (let [scr  (ssw/scrollable result-pane) ]
-                   (.setBackground (.getViewport scr) java.awt.Color/white)
-                   (.setPreferredSize scr (java.awt.Dimension. 430 530)) scr) 
+                       (.setBackground (.getViewport scr) java.awt.Color/white)
+                       (.setPreferredSize scr (java.awt.Dimension. 430 530)) scr) 
                :center (ssw/vertical-panel :items 
                        [(ssw/button :text "SEGMENT"  :listen [:action (fn [e] 
-                                                                        (with-block-check      
-                                                                           (ssw/text! result-pane (s/join "\n" (seq (.split (ssw/text input-pane) "\\."))))))])   [:fill-v 15]
+                                                                        (with-block-check
+                                                                        (future 
+                                                                        (with-busy true
+                                                                        (let [input (-> input-pane ssw/text)]      
+                                                                           (ssw/text! result-pane 
+                                                                           (pstring 
+                                                                            (seq (pro/execute (get-in pro/impls [(identify-impl) :segmenter :component]) input)))))))))]) [:fill-v 15]
                         (ssw/button :text "TOKENISE" 
                                     :listen [:action 
-                                             (fn [e] #_(when-not (:block? @state)
-                                                      (do (refresh :highlighting? false 
-                                                                   :hint nil) 
-                                                               (clear!) (ssw/repaint! canvas))))]) [:fill-v 15]
+                                            (fn [e] 
+                                              (with-block-check
+                                              (future 
+                                                (with-busy true      
+                                                (ssw/text! result-pane 
+                                                   (let [input (-> input-pane ssw/text prn-str read-string)] 
+                                                     (cond 
+                                                       (string? input) (pstring (seq (pro/execute (get-in pro/impls [(identify-impl) :tokeniser :workflow]) input)))
+                                                       (coll? input)   (pstring (seq (pro/execute (get-in pro/impls [(identify-impl) :tokeniser :component]) input))) )))))))]) [:fill-v 15]
                         (ssw/button :text "N-GRAMS" 
                                     :listen [:action 
                                              (fn [e] (with-block-check
-                                                      (when-let [uin (ssw/input GUI "Provide any positive n:" :title "Generate n-grams" :type :question)]
+                                                      (when-let [uin (ssw/input GUI "Provide a positive integer n:" :title "Generate n-grams" :type :question)]
                                                          (ssw/text! result-pane 
                                                            (pstring
-                                                               (ngrams* (-> input-pane ssw/text read-string) (Integer/parseInt uin)))))))]) [:fill-v 15]                                       
+                                                           (ngrams* (-> input-pane ssw/text prn-str read-string) (Integer/parseInt uin)))))))]) [:fill-v 15]                                       
                         (ssw/button :text "STEM" 
                                     :listen [:action 
                                              (fn [e] #_(when-not (:busy? @knobs)
@@ -217,10 +245,16 @@
                                                                                                                              
                         (ssw/button :text "POS" 
                                     :listen [:action 
-                                             (fn [e] #_(when-not (:busy? @knobs)
-                                                      (do (refresh :highlighting? false 
-                                                                   :hint nil) 
-                                                               (clear!) (ssw/repaint! canvas))))]) [:fill-v 15]                                       
+                                             (fn [e] 
+                                              (with-block-check
+                                               (future 
+                                                 (with-busy true      
+                                                 (ssw/text! result-pane 
+                                                   (let [input (-> input-pane ssw/text prn-str read-string)] 
+                                                     (cond 
+                                                      (string? input) (pstring (seq (pro/execute (get-in pro/impls [(identify-impl) :pos-tagger :workflow]) input)))
+                                                      (coll? input)   (pstring (seq (pro/execute (get-in pro/impls [(identify-impl) :pos-tagger :component]) input))) )))))))]) 
+                                            [:fill-v 15]                                       
                         (ssw/button :text "NER" 
                                     :listen [:action (fn [e] 
                                                        #_(when-not (:busy? @knobs) 
@@ -275,9 +309,7 @@
    (ssw/invoke-later 
      (ssw/show! GUI ))) 
                             
-                         
-(defonce paragraph
-"More than nine million people have been affected in the Philippines. Many are now struggling to survive without food, shelter or clean drinking water. A picture is slowly emerging of the full damage wrought by the storm.")                         
+                                               
                          
                          
                          

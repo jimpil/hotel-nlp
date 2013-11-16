@@ -116,9 +116,9 @@ IComponent
   (map #(tokenize this %) sentence)))
 clojure.lang.IFn  ;;can act as an fn
   (invoke [this arg]
-    (tokenize this arg))
+    (run this arg))
   (applyTo [this args]
-    (apply tokenize this args))  ) 
+    (apply run this args))  ) 
        
 (defrecord RE-Abbrv [regexes input output]
 IComponent

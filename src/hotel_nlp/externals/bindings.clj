@@ -232,7 +232,14 @@ IComponent
    :doccat      extend-openlp-doccat 
    }) ;TODO
    
-(def opennlp-simple-tok (opennlp.tools.tokenize.SimpleTokenizer/INSTANCE))   
+(def opennlp-simple-tok (opennlp.tools.tokenize.SimpleTokenizer/INSTANCE))  
+
+(defn opennlp-me-tok 
+([] (opennlp-me-tok "resources/pretrained_models/opennlp/en-token.bin"))
+([model-resource-path] 
+ (opennlp.tools.tokenize.TokenizerME. 
+ (opennlp.tools.tokenize.TokenizerModel.
+   (FileInputStream. (clojure.java.io/file model-resource-path)))))) 
 
 (defn opennlp-me-ssplit 
 ([] (opennlp-me-ssplit "resources/pretrained_models/opennlp/en-sent.bin"))
@@ -433,7 +440,7 @@ IWorkflow
 (definline gate-init [] ;;there will be log4j warnings - ignore
 `(do (gate.Gate/init)  
    (.registerDirectories (gate.Gate/getCreoleRegister) 
-        (clojure.java.io/as-url (clojure.java.io/file (gate.Gate/getPluginsHome) gate.creole.ANNIEConstants/PLUGIN_DIR))))) ;;"Tools"
+        (clojure.java.io/as-url (clojure.java.io/file (gate.Gate/getPluginsHome) "Tools"))))) ;;"Tools" gate.creole.ANNIEConstants/PLUGIN_DIR
         
 #_(defn- gate-exec ^gate.AnnotationSet [^gate.LanguageAnalyser obj mode]
 (doto obj .execute)) 
@@ -441,21 +448,63 @@ IWorkflow
 ; (if (= mode :document) 
 ;    (.getDocument obj) 
 ;    (.getCorpus obj)))
-    
+
+(defn load-annie []
+  (let [^SerialAnalyserController annie (gate.util.persistence.PersistenceManager/loadObjectFromFile 
+                    (clojure.java.io/file (clojure.java.io/file (gate.Gate/getPluginsHome) gate.creole.ANNIEConstants/PLUGIN_DIR)
+                      gate.creole.ANNIEConstants/DEFAULT_FILE)) ]
+
+ annie))
+ 
+(definline gate-proc-resource [^String n]  ;;"gate.creole.morph.Morph" "gate.creole.tokeniser.DefaultTokeniser"
+ `(gate.Factory/createResource ~n))
+ 
+(definline gate-document [location-or-content] ;(-> ~loc clojure.java.io/file clojure.java.io/as-url)
+ `(gate.Factory/newDocument ~location-or-content))
+ 
+ 
+(defn squeeze-gate-ann [^gate.annotation.AnnotationSetImpl annSet ^String original what]
+ (doall (for [^gate.annotation.AnnotationImpl ann annSet 
+                     :let [tp (.getType ann)]
+                     :when (and (not= "SpaceToken" tp)
+                                (not= "Split" tp)
+                                (if (= what "POS") 
+                                   (not= tp "Sentence") true))]
+                     
+                (case what
+                 "POS"    (get (.getFeatures ann) "category")
+                 "Token"  (get (.getFeatures ann) "string")
+                 "Sentence"  (let [^gate.Node start (.getStartNode ann)
+                                   ^gate.Node end   (.getEndNode ann)]
+                                 (.substring original (.getOffset start) (.getOffset end)))
+               ))))                
+
+(defn gate-workflow [& prs]
+ (let [wf (gate.Factory/createResource "gate.creole.SerialAnalyserController")]
+   (dotimes [i (count prs)]
+     (.add wf (nth prs i))) wf))    
            
 (defn extend-gate []
 (extend-type gate.Executable
 IComponent
 (run 
 #_([this]
-(gate-exec this))
-([this _] 
- (doto this .execute)) )
+ (.execute this))
+([this text]
+ (let [d (cond  (instance? gate.Document text) text 
+                (coll? text) (map #(gate-document %) text)
+                (string? text) (gate-document text))
+        thefn   (fn [d] 
+                  (.setDocument this ^gate.Document d) 
+                  (.execute this) 
+                  (.getAnnotations ^gate.Document d)) ] 
+     (if (coll? d) (mapv thefn d) 
+       (thefn d)))) )
 (link [this pos other] 
   (help/linkage this pos other)) )
 (extend-type gate.creole.SerialAnalyserController
 IWorkflow
-(deploy [this] (doto this .execute))
+(deploy [this text] (run this text))
 (addComponent [this pos ^gate.ProcessingResource pr] (.add this pos pr))
 (appendComponent [this ^gate.ProcessingResource pr]  (.add this pr))
 ) )

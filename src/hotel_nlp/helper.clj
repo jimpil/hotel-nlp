@@ -770,6 +770,13 @@ clojure.core.protocols/CollReduce
  [filename]
   (ReducibleCharStream. filename)) 
   
+(defn external-ip "Returns the external ip address of the machine this code is running on, as a string." 
+ ^String []
+(let [ip-url (java.net.URL. "http://api.exip.org/?call=ip")]
+(with-open [in (java.io.BufferedReader. 
+               (java.io.InputStreamReader. (.openStream ip-url)))]
+(.readLine in))))  
+  
 #_(defn spit++ "Like 'spit' but" 
 [filename data]
  (with-open [^java.io.Writer wrt (io/writer filename)]
