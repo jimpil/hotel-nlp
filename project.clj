@@ -34,7 +34,7 @@
                  [net.sf.jgrapht/jgrapht "0.8.3"] 
                  [jgraph/jgraph "5.13.0.0"]
                  [org.flatland/ordered "1.5.1"]
-                 [instaparse "1.2.8"]
+                 [instaparse "1.2.8"] [enlive "1.1.4"]
                  [incanter "1.5.1"] 
                  [rhizome "0.1.9"]
                  [prismatic/plumbing "0.1.1"]

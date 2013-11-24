@@ -462,9 +462,12 @@ IWorkflow
 (definline gate-document [location-or-content] ;(-> ~loc clojure.java.io/file clojure.java.io/as-url)
  `(gate.Factory/newDocument ~location-or-content))
  
+(defn gate-corpus [^String name & locs-or-contents]
+ (let [corpus (gate.Factory/newCorpus name)]
+    (reduce #(do (.add ^gate.Corpus % (gate-document %2)) %) corpus locs-or-contents)))
  
 (defn squeeze-gate-ann [^gate.annotation.AnnotationSetImpl annSet ^String original what]
- (doall (for [^gate.annotation.AnnotationImpl ann annSet 
+  (for [^gate.annotation.AnnotationImpl ann (sort-by #(.getId ^gate.annotation.AnnotationImpl %) annSet) 
                      :let [tp (.getType ann)]
                      :when (and (not= "SpaceToken" tp)
                                 (not= "Split" tp)
@@ -477,12 +480,24 @@ IWorkflow
                  "Sentence"  (let [^gate.Node start (.getStartNode ann)
                                    ^gate.Node end   (.getEndNode ann)]
                                  (.substring original (.getOffset start) (.getOffset end)))
-               ))))                
+              ))) 
+           
+(def gate-annie-prs-names 
+{:annie-ann-del "gate.creole.annotdelete.AnnotationDeletePR",
+ :annie-tok     "gate.creole.tokeniser.DefaultTokeniser",
+ :annie-gazetter "gate.creole.gazetteer.DefaultGazetteer",
+ :annie-ssplit   "gate.creole.splitter.SentenceSplitter",
+ :annie-POS      "gate.creole.POSTagger",
+ :annie-transducer "gate.creole.ANNIETransducer",
+ :annie-ortho    "gate.creole.orthomatcher.OrthoMatcher"})                              
 
-(defn gate-workflow [& prs]
- (let [wf (gate.Factory/createResource "gate.creole.SerialAnalyserController")]
-   (dotimes [i (count prs)]
-     (.add wf (nth prs i))) wf))    
+(defn gate-annie-workflow [& prs]
+ (let [wf (gate.Factory/createResource "gate.creole.SerialAnalyserController" (gate.Factory/newFeatureMap) (gate.Factory/newFeatureMap))
+       wprs (reduce #(do (.add ^gate.creole.SerialAnalyserController % 
+                            (gate.Factory/createResource (get gate-annie-prs-names %2) (gate.Factory/newFeatureMap))) %) wf prs)]
+   wprs))
+   
+    
            
 (defn extend-gate []
 (extend-type gate.Executable
@@ -491,20 +506,35 @@ IComponent
 #_([this]
  (.execute this))
 ([this text]
- (let [d (cond  (instance? gate.Document text) text 
-                (coll? text) (map #(gate-document %) text)
+ (let [d (cond  (instance? gate.Document text) text
+                ;(coll? text) (apply gate-corpus "a_corpus" text)
                 (string? text) (gate-document text))
-        thefn   (fn [d] 
-                  (.setDocument this ^gate.Document d) 
-                  (.execute this) 
-                  (.getAnnotations ^gate.Document d)) ] 
-     (if (coll? d) (mapv thefn d) 
-       (thefn d)))) )
+        thefn   (fn [^gate.Document docu] 
+                 ; (if (instance? gate.Document docu)  
+                    (.setDocument this docu)
+                   ; (.setCorpus this   ^gate.Corpus docu)) 
+                  (.execute this)
+                 ; (if (instance? gate.Document docu) 
+                  (.getAnnotations  docu) 
+                  ;(map #(.getAnnotations ^gate.Document %) (.toArray  ^gate.Corpus docu))
+                  )] 
+       (thefn d))))
 (link [this pos other] 
   (help/linkage this pos other)) )
 (extend-type gate.creole.SerialAnalyserController
 IWorkflow
-(deploy [this text] (run this text))
+(deploy [this text] 
+  (let [c (cond  (instance? gate.Corpus text) text 
+                (coll? text)   (apply gate-corpus "a_corpus" text)
+                (string? text) (gate-corpus "a_corpus" text))
+       thefn   (fn [^gate.Corpus co] 
+                  (.setCorpus this co) 
+                  (.execute this)
+                  (let [arr (.toArray ^gate.Corpus co)
+                        arr-length (count arr)]
+                     (if (> 2 arr-length) (.getAnnotations (first arr))    
+                     (map #(.getAnnotations ^gate.Document %) arr))))]
+     (thefn c)))
 (addComponent [this pos ^gate.ProcessingResource pr] (.add this pos pr))
 (appendComponent [this ^gate.ProcessingResource pr]  (.add this pr))
 ) )

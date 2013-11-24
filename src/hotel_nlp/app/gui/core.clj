@@ -225,23 +225,26 @@
                                               (future 
                                                 (with-busy true      
                                                 (ssw/text! result-pane 
-                                                   (let [input (-> input-pane ssw/text prn-str read-string)] 
+                                                   (let [input (-> input-pane ssw/text pr-str read-string)] 
                                                      (cond 
-                                                       (string? input) (pstring (seq (pro/execute (get-in pro/impls [(identify-impl) :tokeniser :workflow]) input)))
-                                                       (coll? input)   (pstring (seq (pro/execute (get-in pro/impls [(identify-impl) :tokeniser :component]) input))) )))))))]) [:fill-v 15]
+                                                       (string? input) (pstring (flatten (pro/execute (get-in pro/impls [(identify-impl) :tokeniser :workflow]) input)))
+                                                       (coll? input)   (pstring (mapcat (pro/execute (get-in pro/impls [(identify-impl) :tokeniser :component]) input))) )))))))]) [:fill-v 15]
                         (ssw/button :text "N-GRAMS" 
                                     :listen [:action 
                                              (fn [e] (with-block-check
                                                       (when-let [uin (ssw/input GUI "Provide a positive integer n:" :title "Generate n-grams" :type :question)]
+                                                       (future (with-busy true     
                                                          (ssw/text! result-pane 
                                                            (pstring
-                                                           (ngrams* (-> input-pane ssw/text prn-str read-string) (Integer/parseInt uin)))))))]) [:fill-v 15]                                       
+                                                           (ngrams* (-> input-pane ssw/text read-string) (Integer/parseInt uin)))))))))]) [:fill-v 15]                                       
                         (ssw/button :text "STEM" 
                                     :listen [:action 
-                                             (fn [e] #_(when-not (:busy? @knobs)
-                                                      (do (refresh :highlighting? false 
-                                                                   :hint nil) 
-                                                               (clear!) (ssw/repaint! canvas))))]) [:fill-v 15]                                       
+                                             (fn [e] (with-block-check
+                                                      ;(when-let [uin (ssw/input GUI "Choose a stemmer" :title "Stem words" :type :question)]
+                                                       (future (with-busy true     
+                                                         (ssw/text! result-pane 
+                                                           (pstring
+                                                           (pro/execute pro/porter-stemmer (-> input-pane ssw/text read-string) )))))))]) [:fill-v 15]                                       
                                                                                                                              
                         (ssw/button :text "POS" 
                                     :listen [:action 
@@ -250,17 +253,17 @@
                                                (future 
                                                  (with-busy true      
                                                  (ssw/text! result-pane 
-                                                   (let [input (-> input-pane ssw/text prn-str read-string)] 
-                                                     (cond 
-                                                      (string? input) (pstring (seq (pro/execute (get-in pro/impls [(identify-impl) :pos-tagger :workflow]) input)))
-                                                      (coll? input)   (pstring (seq (pro/execute (get-in pro/impls [(identify-impl) :pos-tagger :component]) input))) )))))))]) 
+                                                   (let [input (-> input-pane ssw/text pr-str read-string)] 
+                                                       (pstring (seq (pro/execute (get-in pro/impls [(identify-impl) :pos-tagger :workflow]) input)))))))))]) 
                                             [:fill-v 15]                                       
                         (ssw/button :text "NER" 
                                     :listen [:action (fn [e] 
-                                                       #_(when-not (:busy? @knobs) 
-                                                           (do (refresh :highlighting? true 
-                                                                        :hint nil) 
-                                                                (ssw/repaint! canvas))))])  [:fill-v 15]
+                                              (with-block-check
+                                               (future 
+                                                 (with-busy true      
+                                                 (ssw/text! result-pane 
+                                                   (let [input (-> input-pane ssw/text pr-str read-string)] 
+                                                       (pstring (seq (pro/execute (get-in pro/impls [(identify-impl) :ner :workflow]) input)))))))))])  [:fill-v 15]
                          (ssw/button :text "COREF" 
                                     :listen [:action (fn [e] 
                                                        #_(when-not (:busy? @knobs) 

@@ -6,7 +6,7 @@
               [hotel_nlp.algorithms.viterbi :as vit]
               [hotel_nlp.algorithms.levenshtein :as lev]
               [hotel_nlp.algorithms.ngrams :refer [ngrams*]]
-              [hotel_nlp.tools.normalito.core  :refer [normalise porter-formula]]
+              [hotel_nlp.tools.normalito.core  :refer [normalise porter-formula transform-by-porter-reuse]]
     )
     (:import [hotel_nlp.helper Workflow])
 )
@@ -19,7 +19,7 @@
  (stem 
   ([this] (stem this "english"))
   ([this lang-or-obj]
-    (normalise this #(porter-formula % nil lang-or-obj))))
+    (normalise this  #(porter-formula % nil lang-or-obj))))
  (getRoot [this _ dic] (get dic this "NOT-FOUND!"))
  IDistance
  (getDistance
@@ -184,8 +184,8 @@ IComponent
 (link [this pos other]
   (help/linkage this pos other))
 (run [this s] ;(apply stem this s))) 
-  (if (help/two-d? s) (map #(stem this %) s) 
-  (stem this s)))
+  (if (help/two-d? s) (map #(stem this %) s)
+    (stem this s)))
 clojure.lang.IFn  ;;can act as an fn
   (invoke [this arg]
     (stem this arg))

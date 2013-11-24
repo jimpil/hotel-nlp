@@ -15,7 +15,7 @@
 (defonce reg-tok (RE-Tokenizer. re/token-regex :string :string-seq))
 (defonce reg-seg (RE-Segmenter. re/sentence-segmentation-regex :string :string-seq))
 (defonce stick   (RE-Combiner. :string :string-seq))
-(defonce stemmer (PorterStemmer. "english" :string :string))
+(defonce stemmer (PorterStemmer. (help/porter-stemmer "english") :string :string))
 (defonce bigrams  (Ngrams. 2 :string :string))
 (defonce MR-mapper  (MapReduceMapper. 5))
 (defonce main (Workflow. [reg-seg reg-tok stemmer]))
