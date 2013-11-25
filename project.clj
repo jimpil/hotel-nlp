@@ -6,6 +6,7 @@
   ;:repositories [["bioinformatics-all" "http://bioinformatics.ua.pt/maven/content/groups/public"]]  ;need this for gimli        
   :dependencies [[org.clojure/clojure "1.5.1"]
  		 [org.clojure/data.zip "0.1.1"]
+ 		 [org.clojure/data.csv "0.1.2"]
  		 [org.clojure/tools.nrepl "0.2.3"]
  		 [org.clojure/math.combinatorics "0.0.4"]
  		 [org.clojure/core.memoize "0.5.6"]

@@ -1,5 +1,5 @@
 (ns hotel_nlp.concretions.models
-    (:require [clojure.string  :refer [split-lines split blank?]]
+    (:require [clojure.string  :refer [split-lines split blank? triml]]
               [clojure.pprint  :refer [pprint print-table]]
               [hotel_nlp.protocols :refer :all]
               [hotel_nlp.helper    :as help]
@@ -66,8 +66,9 @@
 ;----------------------------------<REGEX-MODELS>-----------------------------------------------------
 (defrecord RE-Segmenter [regex input output] 
 ISegmenter
-(segment [_ text] 
-  (split text regex))
+(segment [_ text]
+ (map #(if (blank? %) % (str (triml %) " .")) 
+   (split text regex)))
 IComponent 
 (getIOTypes [_] {:input  input 
                  :output output}) 

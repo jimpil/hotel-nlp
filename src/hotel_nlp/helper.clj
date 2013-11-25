@@ -1,6 +1,7 @@
 (ns hotel_nlp.helper
    (:require
         [clojure.data.zip      :as zf]
+        [clojure.data.csv      :as csv]
         [clojure.data.zip.xml  :as zxml]
         [clojure.xml           :as xml]
         [clojure.zip           :as zip]
@@ -775,7 +776,39 @@ clojure.core.protocols/CollReduce
 (let [ip-url (java.net.URL. "http://api.exip.org/?call=ip")]
 (with-open [in (java.io.BufferedReader. 
                (java.io.InputStreamReader. (.openStream ip-url)))]
-(.readLine in))))  
+(.readLine in))))
+
+(defn csv->maps 
+"Converts each row of a csv file to a map with keys (keys ks-columns) and values (map #(get row %) (vals ks-columns)). 
+ Expects a file location and a map from keys to indices (columns in the csv content). 
+ The keys will populate the keys of all the maps returned and the values will be used to fetch the right columns from the csv file.
+ If you want to consume everything pass nil or :all instead of a map or simply call the 1-arg overload.
+ Assumes that the csv file has headers (first line). 
+ Returns a list of maps - one per row except the first (headers).
+ Example: 
+    (csv->map \"some.csv\" 
+       {:file-name   0   ;;look for file name in the 1st column
+        :precipitant 2   ;;look for precipitant in the 3rd column
+        :object  7       ;;look for object in the 8th column
+        :type 13         ;;look for type in the 14th column
+        :modality 12})   ;;etc  "
+([^String csv-file ks-columns]
+ (with-open [in-file (io/reader csv-file)]
+   (let [data (-> in-file csv/read-csv)
+         ks-columns  (if (or (nil?   ks-columns) 
+                             (= :all ks-columns)) ;;user wants it all!
+                         (reduce (fn [init [i e]] 
+                                  (assoc init e i)) {} 
+                         (->> data first (map-indexed vector)))    
+                      ks-columns) ;;user has a selection - leave it alone
+         headerless (rest data) ] ;get rid of header row 
+  (doall
+    (map 
+      (fn [row]
+        (zipmap (keys ks-columns) 
+         (map #(get row %) (vals ks-columns))))  headerless)))))
+([^String filename]
+  (csv->maps filename nil)) )           
   
 #_(defn spit++ "Like 'spit' but" 
 [filename data]

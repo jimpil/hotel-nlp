@@ -75,18 +75,19 @@
 (def parsePK
  (insta/parser
   "S  =  PHRASE+  SPACE END
-   PHRASE = (DDIPK / DDI / COADMIN / ENCLOSED) | TOKEN (SPACE TOKEN PUNCT?)*
-   DDIPK = OBJECT? SPACE PK SPACE (BE | TO)? SPACE OBJECT? SPACE EFF?
+   PHRASE = (DDIPK / DDI / COADMIN / ENCLOSED ) | TOKEN (SPACE TOKEN PUNCT?)*
+   DDIPK = OBJECT? SPACE PK SPACE (BE | TO)? SPACE OBJECT? SPACE EFF?  
    DDI =  PRECIPITANT SPACE MECH SPACE OBJECT SPACE PK | PRECIPITANT SPACE MECH SPACE 'in' SPACE
-   EFF =  BE? SPACE (SIGN | FOLD)? SPACE MECH SPACE (ADV | FOLD)?    
-   TOKEN = (DOSE | ROUTE | NUM |  (OBJECT / PRECIPITANT) | PK | PERCENTAGE | XFOLD | XFACTOR | CYP | ABBR | MECH | SIGN | TO | ENCLOSED | COMMA) / WORD 
+   EFF =  MAYBE? SPACE BE? SPACE (SIGN | FOLD)? SPACE MECH SPACE (ADV | FOLD)? SPACE (PRECIPITANT | PK)? SPACE  
+   TOKEN = ((OBJECT / PRECIPITANT / DRUG) | DOSE | ROUTE | NUM  |  PK | PERCENTAGE | XFOLD | XFACTOR | CYP | ABBR |  MECH | SIGN | TO | ENCLOSED | COMMA) / WORD 
    <WORD> = #'\\w+' 
    <PUNCT> = #'\\p{Punct}'
    INC-DEC = ('increase' | 'decrease') / #'\\b+[a-z]+e\\b+'
    FOLD =  (NUM SPACE '-' SPACE ('and' | ',')? SPACE)+ SPACE 'fold'
-   COADMIN = #'(?i)when' SPACE #'(?i)co\\-?administered' SPACE 'with' SPACE PRECIPITANT SPACE | 
-             #'(?i)co\\-?administration' SPACE TO SPACE DRUG SPACE DOSE? SPACE 'with' SPACE DRUG
-   XFOLD = FOLD SPACE (INC-DEC | MECH)?
+   COADMIN = #'(?i)when' SPACE #'(?i)co\\-?administered' SPACE PRECIPITANT SPACE | 
+             #'(?i)co\\-?administration' SPACE TO SPACE DRUG SPACE 'with' SPACE DRUG  |
+             #'(?i)co\\-?administration' SPACE TO SPACE 'either'? SPACE (DRUG 'or'?)+ 
+   XFOLD = FOLD SPACE EFF? 
    XFACTOR = BY SPACE 'factors' SPACE (TO | #'[a-z]+ing'? SPACE 'between') SPACE (NUM ('and' SPACE NUM)*) 
    ROUTE = #'(?i)oral|intravenous'
    BY = 'by'
@@ -104,11 +105,11 @@
     CYP =  #'\\b+CYP[A-Z0-9]*\\b+' 
     ADV =   #'\\b+[a-z]+ly\\b+'
    <SPACE> = <#'\\s*'>
-   PRECIPITANT = DRUG
+   PRECIPITANT = (BY | 'with' | 'as') SPACE DRUG / DRUG SPACE EFF 
    PARENDOSE = '(' DOSE  ('for' SPACE NUM #'days?')? ')'
    DRUGDOSE = PRECIPITANT SPACE PARENDOSE 
    2DRUG = DRUGDOSE SPACE 'administered'? SPACE 'with' 'a single'? SPACE DRUGDOSE
-   OBJECT = TO SPACE DRUG / DRUG SPACE 'metabolism'
+   OBJECT = TO SPACE DRUG / DRUG SPACE PK SPACE BE / DRUG SPACE 'metabolism'
     DRUG = (ROUTE SPACE)?  
       (#'(?i)\\b+\\w+a[z|st|p]ine?\\b+' | 
        #'(?i)\\b+\\w+[i|u]dine?\\b+'    | 
@@ -121,21 +122,45 @@
        #'(?i)\\b+\\w+retine?\\b+'       |
        #'(?i)\\b+\\w+navir\\b+'         |
        #'(?i)\\b+\\w+ocaine\\b+'        |
-       #'(?i)didanosine|tenofovir|vaprisol|conivaptan|amlodipine|carbamazepine|S?\\-?warfarin') (SPACE DOSE)?
+       #'(?i)\\b+\\w+oxetine\\b+'        |
+       #'(?i)\\b+\\w+fenone\\b+'        |   
+       #'(?i)didanosine|tenofovir|vaprisol|conivaptan|amlodipine|carbamazepine|S?\\-?warfarin|metoclopramide|acetaminophen|tetracycline|digoxin|levodopa|cyclosporine|ethanol|captopril|furosemide|S?\\-?metoprolol') SPACE 'hydrochloride'?
+       (SPACE 'up to'? SPACE  DOSE)?
  
-    PK =  MECH? SPACE 'the'? SPACE 'mean'? SPACE OBJECT?
-          #'(?i)(pharmacokinetics|exposure|bioavailability|lower?(\\s|\\-)?clearance|AUC|half\\-life|Cmax|plasma(\\-|\\s)levels?)' SPACE (TO SPACE OBJECT)?       
-    MECH =  (#'\\b+[a-z]+se[s|d]\\b+' | MAYBE SPACE #'\\b+[a-z]+se\\b+') (SPACE (FOLD | (BY? SPACE ((NUM 'x') | PERCENTAGE) | OBJECT)))?
+    PK =  MECH? SPACE 'the'? SPACE 'mean'? SPACE (OBJECT | DRUG)?
+          #'(?i)(pharmacokinetics|exposure|bioavailability|lower?(\\s|\\-)?clearance|concentration|absorption|elimination|AUC|half\\-life|Cmax|plasma(\\-|\\s)levels?)' SPACE OBJECT?       
+    MECH =  MAYBE? SPACE BE?
+           ( #'inhibit(?:e(?:s|d)?|ing|ions?|or)?' |
+             #'cataly(?:z|s)(?:e(?:s|d)?|ing)'    |
+             #'metaboli(?:(z|s)(?:e(?:s|d)?|ing)|sm)' |
+             #'correlat(?:e(?:s|d)?|ing|ions?)'  |
+             #'induc(?:e(?:s|d)?|ing|tions?|or)' |
+             #'stimulat(?:e(?:s|d)?|ing|ions?)' |
+             #'activ(?:e(?:s)?|(?:at)(?:e(?:s|d)?|ing|ions?))' |
+             #'form(?:(?:s|ed|ing|ations?)?)'   |
+             #'suppress(?:e(?:s|d)?|ing|ions?)' |
+             #'increas(?:e(?:s|d)?|ing)'  |
+             #'decreas(?:e(?:s|d)?|ing)' |
+             #'diminish(?:e(?:s|d)?|ing)' |
+             #'\\b+[a-z]+e(s|d)\\b+'      )  (SPACE (FOLD | (BY? SPACE ((NUM 'x') | PERCENTAGE) | OBJECT)))?
     SIGN =  ADV | NEG
     MAYBE = 'can' | 'may'
     NEG = 'not' | #'un[a-z]+ed'
     <TO> = 'to' | 'of'
-    BE = 'is' | 'are' | 'was' | 'were'
+    BE = 'be' | 'is' | 'are' | 'was' | 'were'
   (*  DO = 'does' | 'do' | 'did' *) 
    <COMMA> = ',' 
   (* <OTHER> = 'as' | 'its' | 'by' *)
     END =  '.' "  ;:output-format :enlive
 ))
+
+(defonce GOLD-PK ;;the gold corpus as a data-structure
+ (help/csv->maps "resources/all-consensus-interaction-entities-dumped-05162011.csv" 
+   {:file 0 ;;string
+    :precipitant 2 ;;drug
+    :object  7 ;;drug
+    :type 13 ;;pos/neg 
+    :modality 12})) ;;qualitative/quantitative
 
 ;(comment
 ;(defn explore 
@@ -191,7 +216,7 @@
 #_(pprint 
 (parsePK "Coadministration of oral conivaptan hydrochloride 10 mg with ketoconazole 200 mg resulted in."))
 
-(def test-data "23 representative sentences"
+(def sucess "23 representative sentences"
 ["Exposure to didanosine is increased when coadministered with tenofovir disoproxil fumarate [Table 5 and see Clinical Pharmacokinetics (12.3, Tables 9 and 10)]."
 "Carbamazepine can increase alprazolam metabolism and therefore can decrease plasma levels of alprazolam." 
 "Absorption of drugs from the stomach may be diminished by metoclopramide (e.g., digoxin), whereas the rate and/or extent of absorption of drugs from the small bowel may be increased (e.g., acetaminophen, tetracycline, levodopa, ethanol, cyclosporine)."
@@ -199,7 +224,6 @@
 "VAPRISOL 30 mg/day resulted in a 3-fold increase in the AUC of simvastatin."
 "Oral conivaptan hydrochloride 40 mg twice daily resulted in a 2-fold increase in the AUC and half-life of amlodipine [see Warnings and Precautions (5.3)]."
 "Coadministration of a 0.5 mg dose of digoxin, a P-glycoprotein substrate, with oral conivaptan hydrochloride 40 mg twice daily resulted in a 30% reduction in clearance and 79% and 43% increases in digoxin Cmax and AUC values, respectively [see Warnings and Precautions (5.4)]."
-"VAPRISOL (40 mg/day for 4 days) administered with a single 25 mg dose of warfarin, which undergoes major metabolism by CYP2C9 and minor metabolism by CYP3A, increased the mean S-warfarin AUC and S-warfarin Cmax by 14% and 17%, respectively."
 "The pharmacokinetics of oral conivaptan (20 - 40 mg/day) were unchanged with coadministration of either captopril 25 mg or furosemide up to 80 mg/day."
 "Drugs that inhibit CYP2D6 such as quinidine, fluoxetine, paroxetine, and propafenone are likely to increase metoprolol concentration."
 "In healthy subjects with CYP2D6 extensive metabolizer phenotype, coadministration of quinidine 100 mg and immediate-release metoprolol 200 mg tripled the concentration of S-metoprolol and doubled the metoprolol elimination half-life."
@@ -214,5 +238,11 @@
 "In the presence of doxazosin, AUC and Cmax of nifedipine were increased by factors of 1.13 and 1.23, respectively."
 "In normotensive subjects receiving single doses of 10 mg or multiple doses of up to 20 mg nifedipine t.i.d. alone or together with cimetidine up to 1000 mg/day, the AUC values of nifedipine in the presence of cimetidine were between 1.52 and 2.01 times those in the absence of cimetidine."
 "The Cmax values of nifedipine in the presence of cimetidine were increased by factors ranging between 1.60 and 2.02."
-"Concomitant administration of quinupristin/dalfopristin and nifedipine (repeated oral dose) in healthy volunteers increased AUC and Cmax for nifedipine by factors of 1.44 and 1.18, respectively, compared to nifedipine monotherapy."])
+"Concomitant administration of quinupristin/dalfopristin and nifedipine (repeated oral dose) in healthy volunteers increased AUC and Cmax for nifedipine by factors of 1.44 and 1.18, respectively, compared to nifedipine monotherapy."
+])
+
+
+(def fail 
+["VAPRISOL (40 mg/day for 4 days) administered with a single 25 mg dose of warfarin, which undergoes major metabolism by CYP2C9 and minor metabolism by CYP3A, increased the mean S-warfarin AUC and S-warfarin Cmax by 14% and 17%, respectively."
+])
                    

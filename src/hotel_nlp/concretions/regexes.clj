@@ -4,8 +4,11 @@
 )
 
 
-(def sentence-segmentation-regex  "Regular expression capable of identifying sentence boundaries."  
-   #"(?<=[.!?]|[.!?][\\'\"])(?<!e\.g\.|i\.e\.|vs\.|p\.m\.|a\.m\.|Mr\.|Mrs\.|Ms\.|St\.|Fig\.|fig\.|Jr\.|Dr\.|Prof\.|Sr\.|[A-Z]\.)\s+")
+
+
+(def sentence-segmentation-regex  "Regular expression capable of identifying sentence boundaries. To be used with clojure.string/split."  
+  ;#"(?<=[.!?]|[.!?][\\'\"]|\n{2,})(?<!\([e|i]|\.[g|e]|vs|[0-9]{1,2}\s{1,2}(p|a)|\.m|Mr|Mrs|Ms|St|Fig|fig|Jr|Dr|Prof|Sr|[0-9])\s*" 
+  #"(?<!\([e|i]|\.[g|e]|vs|[0-9]{1,2}\s{1,2}(p|a)|\.m|Mr|Mrs|Ms|St|Fig|fig|Jr|Dr|Prof|Sr|[0-9])([.!?]|[.!?][\\'\"]|\n{2,})(?=\s*[A-Z0-9])" )
 (def token-regex "Regular expression capable of identifying word boundaries." 
    #"[\p{L}\d/]+|[\-\,\.\?\!\(\)]")
 (def re-abbreviation-paren "Regular expression capable of identifying abbreviations (NOT acronyms!) contained in parentheses (at least 2 characters), following a proper term." 
@@ -41,6 +44,8 @@
     #"activ(?:e(?:s)?|(?:at)(?:e(?:s|d)?|ing|ions?))"
     #"form(?:(?:s|ed|ing|ations?)?)" 
     #"suppress(?:e(?:s|d)?|ing|ions?)"
+    #"increas(?:e(?:s|d)?|ing)"
+    #"decreas(?:e(?:s|d)?|ing)"
   ])
   
 (def re-numbers "Regular expression capable of identifying numbers followed by their unit of measure." 
